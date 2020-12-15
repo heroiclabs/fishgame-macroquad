@@ -1,5 +1,5 @@
 [package]
-name = "server"
+name = "shared"
 version = "0.1.0"
 authors = ["Fedor Logachev <not.fl3@gmail.com>"]
 edition = "2018"
@@ -8,5 +8,4 @@ edition = "2018"
 
 [dependencies]
 nanoserde = "0.1"
-shared = { path = "../shared" }
-quad-net = { git = "https://github.com/not-fl3/quad-net.git", features = ["nanoserde"] }
+

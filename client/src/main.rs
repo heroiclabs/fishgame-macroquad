@@ -9,9 +9,11 @@ struct Player {
     speed: Vec2,
 }
 
-struct Platform {
-    collider: Solid,
-    speed: f32,
+mod consts {
+    pub const GRAVITY: f32 = 900.0;
+    pub const JUMP_SPEED: f32 = 250.0;
+    pub const RUN_SPEED: f32 = 150.0;
+    pub const PLAYER_SPRITE: u32 = 120;
 }
 
 #[macroquad::main("Platformer")]
@@ -30,14 +32,17 @@ async fn main() {
     let mut world = World::new();
     world.add_static_tiled_layer(static_colliders, 8., 8., 40, 1);
 
-    let mut player = Player {
-        collider: world.add_actor(vec2(50.0, 80.0), 8, 8),
-        speed: vec2(0., 0.),
-    };
+    let spawner_pos = {
+        let objects = &tiled_map.layers["logic"].objects;
+        let macroquad_tiled::Object::Rect {
+            world_x, world_y, ..
+        } = objects[rand::gen_range(0, objects.len()) as usize];
 
-    let mut platform = Platform {
-        collider: world.add_solid(vec2(170.0, 130.0), 32, 8),
-        speed: 50.,
+        vec2(world_x, world_y)
+    };
+    let mut player = Player {
+        collider: world.add_actor(spawner_pos, 8, 8),
+        speed: vec2(0., 0.),
     };
 
     let camera = Camera2D::from_display_rect(Rect::new(0.0, 0.0, 320.0, 152.0));
@@ -49,28 +54,19 @@ async fn main() {
 
         tiled_map.draw_tiles("main layer", Rect::new(0.0, 0.0, 320.0, 152.0), None);
 
-        // draw platform
-        {
-            let pos = world.solid_pos(platform.collider);
-            tiled_map.spr_ex(
-                "tileset",
-                Rect::new(6.0 * 8.0, 0.0, 32.0, 8.0),
-                Rect::new(pos.x, pos.y, 32.0, 8.0),
-            )
-        }
-
         // draw player
         {
-            // sprite id from tiled
-            const PLAYER_SPRITE: u32 = 120;
-
             let pos = world.actor_pos(player.collider);
             if player.speed.x >= 0.0 {
-                tiled_map.spr("tileset", PLAYER_SPRITE, Rect::new(pos.x, pos.y, 8.0, 8.0));
+                tiled_map.spr(
+                    "tileset",
+                    consts::PLAYER_SPRITE,
+                    Rect::new(pos.x, pos.y, 8.0, 8.0),
+                );
             } else {
                 tiled_map.spr(
                     "tileset",
-                    PLAYER_SPRITE,
+                    consts::PLAYER_SPRITE,
                     Rect::new(pos.x + 8.0, pos.y, -8.0, 8.0),
                 );
             }
@@ -82,36 +78,26 @@ async fn main() {
             let on_ground = world.collide_check(player.collider, pos + vec2(0., 1.));
 
             if on_ground == false {
-                player.speed.y += 500. * get_frame_time();
+                player.speed.y += consts::GRAVITY * get_frame_time();
             }
 
             if is_key_down(KeyCode::Right) {
-                player.speed.x = 100.0;
+                player.speed.x = consts::RUN_SPEED;
             } else if is_key_down(KeyCode::Left) {
-                player.speed.x = -100.0;
+                player.speed.x = -consts::RUN_SPEED;
             } else {
                 player.speed.x = 0.;
             }
 
-            if is_key_down(KeyCode::Space) {
+            if is_key_pressed(KeyCode::Space) {
                 if on_ground {
-                    player.speed.y = -120.;
+                    player.speed.y = -consts::JUMP_SPEED;
                 }
             }
 
             world.move_h(player.collider, player.speed.x * get_frame_time());
-            world.move_v(player.collider, player.speed.y * get_frame_time());
-        }
-
-        // platform movement
-        {
-            world.solid_move(platform.collider, platform.speed * get_frame_time(), 0.0);
-            let pos = world.solid_pos(platform.collider);
-            if platform.speed > 1. && pos.x >= 220. {
-                platform.speed *= -1.;
-            }
-            if platform.speed < -1. && pos.x <= 150. {
-                platform.speed *= -1.;
+            if !world.move_v(player.collider, player.speed.y * get_frame_time()) {
+                player.speed.y = 0.0;
             }
         }
 

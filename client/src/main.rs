@@ -9,7 +9,54 @@ use physics_platformer::*;
 use macroquad::telemetry;
 
 use particles::Emitter;
-use quad_net::client::QuadSocket;
+
+#[cfg(target_arch = "wasm32")]
+mod nakama {
+    use sapp_jsutils::JsObject;
+
+    extern "C" {
+        fn nakama_is_connected() -> bool;
+        fn nakama_send(opcode: i32, data: JsObject);
+        fn nakama_try_recv() -> JsObject;
+
+    }
+
+    #[no_mangle]
+    pub extern "C" fn quad_nakama_crate_version() -> u32 {
+        (0 << 24) + (1 << 16) + 0
+    }
+
+    pub fn connected() -> bool {
+        unsafe { nakama_is_connected() }
+    }
+
+    pub fn send(data: &[u8]) {
+        unsafe { nakama_send(1, JsObject::buffer(data)) }
+    }
+
+    pub fn send_bin<T: nanoserde::SerBin>(data: &T) {
+        use nanoserde::SerBin;
+
+        send(&SerBin::serialize_bin(data));
+    }
+
+    pub fn try_recv() -> Option<Vec<u8>> {
+        let data = unsafe { nakama_try_recv() };
+        if data.is_nil() == false {
+            let mut buf = vec![];
+            data.to_byte_buffer(&mut buf);
+            return Some(buf);
+        }
+        None
+    }
+
+    pub fn try_recv_bin<T: nanoserde::DeBin + std::fmt::Debug>() -> Option<T> {
+        let bytes = try_recv()?;
+        let data: T = nanoserde::DeBin::deserialize_bin(&bytes).expect("Cant parse message");
+
+        Some(data)
+    }
+}
 
 struct Player {
     collider: Actor,
@@ -53,37 +100,12 @@ async fn main() {
     let _tcp_ip = "173.0.157.169:8090";
     let _ws_ip = "ws://173.0.157.169:8091";
 
-    #[cfg(not(target_arch = "wasm32"))]
-    let mut socket = QuadSocket::connect(_tcp_ip).unwrap();
-    #[cfg(target_arch = "wasm32")]
-    let mut socket = QuadSocket::connect(_ws_ip).unwrap();
-
     #[cfg(target_arch = "wasm32")]
     {
-        while socket.is_wasm_websocket_connected() == false {
+        while nakama::connected() == false {
             next_frame().await;
         }
     }
-
-    socket.send_bin(&shared::Handshake {
-        magic: shared::MAGIC,
-        version: shared::PROTOCOL_VERSION,
-    });
-
-    let message = shared::Message::SpawnRequest;
-    socket.send_bin(&message);
-    let id = loop {
-        if let Some(message) = socket.try_recv() {
-            let message = nanoserde::DeBin::deserialize_bin(&message).unwrap();
-            match message {
-                shared::Message::Spawned(id) => break id,
-                _ => panic!("Expected Messag::Spawned"),
-            }
-        }
-        next_frame().await;
-    };
-
-    info!("Spawned with id {}", id);
 
     let tileset = load_texture("client/assets/tileset.png").await;
     set_texture_filter(tileset, FilterMode::Nearest);
@@ -95,8 +117,6 @@ async fn main() {
     for (_x, _y, tile) in tiled_map.tiles("main layer", None) {
         static_colliders.push(tile.is_some());
     }
-
-    socket.send_bin(&shared::Message::Move(0, 0));
 
     let mut world = World::new();
     world.add_static_tiled_layer(static_colliders, 8., 8., 40, 1);
@@ -118,7 +138,7 @@ async fn main() {
 
     let camera = Camera2D::from_display_rect(Rect::new(0.0, 0.0, 320.0, 152.0));
 
-    let mut players = vec![];
+    let mut players = vec![(0, 0)];
 
     loop {
         telemetry::begin_zone("Main loop");
@@ -129,14 +149,14 @@ async fn main() {
             let x = pos.x as u16
                 + ((player.facing_right as u16) << 14)
                 + ((player.shooting as u16) << 15);
-            socket.send_bin(&shared::Message::Move(x, pos.y as u8));
+            nakama::send_bin(&shared::Message::Move(x, pos.y as u8));
         }
 
-        while let Some(msg) = socket.try_recv_bin() {
-            players = match msg {
-                shared::Message::Players(players) => players,
+        while let Some(msg) = nakama::try_recv_bin::<shared::Message>() {
+            match msg {
+                shared::Message::Move(x, y) => players[0] = (x, y),
                 _ => panic!(),
-            };
+            }
         }
 
         telemetry::end_zone();

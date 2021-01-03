@@ -96,7 +96,7 @@ dependencies = [
  "macroquad-tiled",
  "nanoserde",
  "physics-platformer",
- "quad-net",
+ "sapp-jsutils",
  "server",
  "shared",
 ]

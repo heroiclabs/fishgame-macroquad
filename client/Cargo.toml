@@ -15,7 +15,9 @@ macroquad-tiled = { git = "https://github.com/not-fl3/macroquad.git" }
 macroquad-particles = { git = "https://github.com/not-fl3/macroquad.git", features = ["nanoserde"] }
 macroquad-profiler = { git = "https://github.com/not-fl3/macroquad.git" }
 shared = { path = "../shared" }
-quad-net = { git = "https://github.com/not-fl3/quad-net.git", features = ["nanoserde"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+sapp-jsutils = "0.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 server = { path = "../server" }

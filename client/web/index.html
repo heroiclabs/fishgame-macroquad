@@ -1,36 +1,37 @@
 <!doctype html>
 <html lang="en">
 
-<head>
+  <head>
     <meta charset="utf-8">
     <title>FISH</title>
     <style>
-        html,
-        body,
-        canvas {
-            margin: 0px;
-            padding: 0px;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            position: absolute;
-            background: black;
-        }
-        #canvas {
-            z-index: 2;
-        }
-        #glcanvas {
-            z-index: 0;
-        }
+      html,
+      body,
+      canvas {
+          margin: 0px;
+          padding: 0px;
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+          position: absolute;
+          background: black;
+      }
+      #canvas {
+          z-index: 2;
+      }
+      #glcanvas {
+          z-index: 0;
+      }
     </style>
-</head>
+  </head>
 
-<body>
+  <body>
     <canvas id="glcanvas" tabindex='1'></canvas>
     <script src="gl-0.1.20.js"></script>
     <script src="sapp_jsutils.js"></script>
-    <script src="quad-net.js"></script>
+    <script src="nakama-js.iife.js"></script>
+    <script src="quad-nakama.js"></script>
     <script>load("fishgame.wasm");</script>
-</body>
+  </body>
 
 </html>

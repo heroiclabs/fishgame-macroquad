@@ -32,6 +32,8 @@ apt install libx11-dev libxi-dev libgl1-mesa-dev
 
 ### Native PC build: 
 
+*note that nakama networking is not yet supported on PC and PC build is intenteded only for single player dev builds*
+
 ```
 cargo run --release
 ```

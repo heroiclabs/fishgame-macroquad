@@ -42,17 +42,42 @@ struct Bullet {
     lifetime: f32,
 }
 
+bitfield::bitfield! {
+    struct PlayerStateBits([u8]);
+    impl Debug;
+    u32;
+    x, set_x: 9, 0;
+    y, set_y: 19, 10;
+    facing, set_facing: 20;
+    shooting, set_shooting: 21;
+}
+
+#[test]
+fn test_bitfield() {
+    let mut bits = PlayerStateBits([0; 3]);
+
+    bits.set_x(345);
+    bits.set_y(567);
+    bits.set_facing(true);
+    bits.set_shooting(false);
+
+    assert_eq!(bits.x(), 345);
+    assert_eq!(bits.y(), 567);
+    assert_eq!(bits.facing(), true);
+    assert_eq!(bits.shooting(), false);
+    assert_eq!(std::mem::size_of_val(&bits), 3);
+}
+
 #[derive(Debug, Clone, SerBin, DeBin, PartialEq)]
 pub enum Message {
-    Move(u16, u8),
+    Move([u8; 3]),
     SelfDamage(u8),
-    Players(Vec<(u16, u8)>),
     Died,
 }
 
 struct NetworkCache {
     sent_health: i32,
-    sent_pos: (u16, u8),
+    sent_pos: [u8; 3],
     last_send_time: f64,
 }
 
@@ -116,7 +141,7 @@ impl World {
             network_cache: NetworkCache {
                 last_send_time: 0.0,
                 sent_health: 100,
-                sent_pos: (0, 0),
+                sent_pos: [0; 3],
             },
         }
     }
@@ -131,12 +156,16 @@ impl World {
                 self.network_cache.last_send_time = get_time();
 
                 let pos = self.collision_world.actor_pos(self.player.collider);
-                let x =
-                    pos.x as u16 + ((self.player.facing as u16) << 14) + ((shooting as u16) << 15);
+                let mut state = PlayerStateBits([0; 3]);
 
-                if self.network_cache.sent_pos != (x, pos.y as u8) {
-                    nakama::send_bin(&Message::Move(x, pos.y as u8));
-                    self.network_cache.sent_pos = (x, pos.y as u8);
+                state.set_x(pos.x as u32);
+                state.set_y(pos.y as u32);
+                state.set_facing(self.player.facing);
+                state.set_shooting(shooting);
+
+                if self.network_cache.sent_pos != state.0 {
+                    nakama::send_bin(&Message::Move(state.0));
+                    self.network_cache.sent_pos = state.0;
                 }
 
                 if self.network_cache.sent_health != self.player.health {
@@ -155,15 +184,15 @@ impl World {
 
         while let Some(msg) = nakama::try_recv_bin::<Message>() {
             match msg {
-                Message::Move(x, y) => {
-                    let facing = ((x >> 14) & 1) != 0;
-                    let shooting = ((x >> 15) & 1) != 0;
-                    let x = x & 0x3fff;
-                    let pos = vec2(x as f32, y as f32);
+                Message::Move(data) => {
+                    let state = PlayerStateBits(data);
 
-                    self.players[0].facing = facing;
+                    let facing = state.facing();
+                    let shooting = state.shooting();
+                    let pos = vec2(state.x() as f32, state.y() as f32);
+
                     self.players[0].pos = pos;
-
+                    self.players[0].facing = facing;
                     if shooting {
                         self.spawn_bullet(pos, facing);
                     }
@@ -174,7 +203,6 @@ impl World {
                 Message::Died => {
                     self.score.1 += 1;
                 }
-                _ => panic!(),
             }
         }
     }

@@ -29,4 +29,4 @@ macroquad = { git = "https://github.com/not-fl3/macroquad.git" }
 # macroquad = { path = "../macroquad" }
 # #miniquad = { path = "../miniquad" }
 # #megaui = { path = "../megaui" }
-# #sapp-jsutils = { path = "../sapp-jsutils" }
+# sapp-jsutils = { path = "../sapp-jsutils" }

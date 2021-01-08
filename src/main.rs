@@ -4,11 +4,11 @@ use macroquad_particles as particles;
 use macroquad_profiler as profiler;
 use macroquad_tiled as tiled;
 
-use physics_platformer::{Actor, World as CollisionWorld};
-
 use macroquad::telemetry;
-use nanoserde::{DeBin, SerBin};
+use nanoserde::DeBin;
 use particles::EmittersCache;
+use physics_platformer::{Actor, World as CollisionWorld};
+use std::collections::HashMap;
 
 mod nakama;
 
@@ -35,6 +35,15 @@ struct Other {
     health: i32,
 }
 
+impl Other {
+    fn new() -> Other {
+        Other {
+            pos: vec2(0., 0.),
+            facing: true,
+            health: 100,
+        }
+    }
+}
 struct Bullet {
     pos: Vec2,
     speed: Vec2,
@@ -68,17 +77,40 @@ fn test_bitfield() {
     assert_eq!(std::mem::size_of_val(&bits), 3);
 }
 
-#[derive(Debug, Clone, SerBin, DeBin, PartialEq)]
-pub enum Message {
-    Move([u8; 3]),
-    SelfDamage(u8),
-    Died,
+mod message {
+    use nanoserde::{DeBin, SerBin};
+
+    #[derive(Debug, Clone, SerBin, DeBin, PartialEq)]
+    pub struct Move(pub [u8; 3]);
+    impl Move {
+        pub const OPCODE: i32 = 1;
+    }
+
+    #[derive(Debug, Clone, SerBin, DeBin, PartialEq)]
+    pub struct SelfDamage(pub u8);
+    impl SelfDamage {
+        pub const OPCODE: i32 = 2;
+    }
+
+    #[derive(Debug, Clone, SerBin, DeBin, PartialEq)]
+    pub struct Died;
+    impl Died {
+        pub const OPCODE: i32 = 3;
+    }
 }
 
 struct NetworkCache {
     sent_health: i32,
-    sent_pos: [u8; 3],
+    sent_position: [u8; 3],
     last_send_time: f64,
+}
+
+impl NetworkCache {
+    fn flush(&mut self) {
+        self.sent_health = 100;
+        self.sent_position = [0; 3];
+        self.last_send_time = 0.0;
+    }
 }
 
 struct World {
@@ -86,9 +118,8 @@ struct World {
     collision_world: CollisionWorld,
     tiled_map: tiled::Map,
     player: Player,
-    players: Vec<Other>,
+    others: HashMap<String, Other>,
     bullets: Vec<Bullet>,
-    score: (u32, u32),
     network_cache: NetworkCache,
 }
 
@@ -122,7 +153,6 @@ impl World {
             EmittersCache::new(nanoserde::DeJson::deserialize_json(EXPLOSION_FX).unwrap());
 
         World {
-            score: (0, 0),
             explosions,
             player: Player {
                 collider: collision_world.add_actor(spawner_pos, 8, 8),
@@ -133,15 +163,11 @@ impl World {
             tiled_map,
             collision_world,
             bullets: vec![],
-            players: vec![Other {
-                pos: vec2(100.0, 103.0),
-                facing: true,
-                health: 100,
-            }],
+            others: HashMap::new(),
             network_cache: NetworkCache {
+                sent_position: [0; 3],
                 last_send_time: 0.0,
                 sent_health: 100,
-                sent_pos: [0; 3],
             },
         }
     }
@@ -163,45 +189,66 @@ impl World {
                 state.set_facing(self.player.facing);
                 state.set_shooting(shooting);
 
-                if self.network_cache.sent_pos != state.0 {
-                    nakama::send_bin(&Message::Move(state.0));
-                    self.network_cache.sent_pos = state.0;
+                if self.network_cache.sent_position != state.0 {
+                    self.network_cache.sent_position = state.0;
+                    nakama::send_bin(message::Move::OPCODE, &message::Move(state.0));
                 }
 
                 if self.network_cache.sent_health != self.player.health {
                     if self.player.health < 0 {
                         self.network_cache.sent_health = 100;
                         self.player.health = 100;
-                        self.score.0 += 1;
-                        nakama::send_bin(&Message::Died);
+                        nakama::send_bin(message::Died::OPCODE, &message::Died);
                     } else {
-                        nakama::send_bin(&Message::SelfDamage(self.player.health as u8));
+                        nakama::send_bin(
+                            message::SelfDamage::OPCODE,
+                            &message::SelfDamage(self.player.health as u8),
+                        );
                         self.network_cache.sent_health = self.player.health;
                     }
                 }
             }
         }
 
-        while let Some(msg) = nakama::try_recv_bin::<Message>() {
-            match msg {
-                Message::Move(data) => {
-                    let state = PlayerStateBits(data);
+        while let Some(event) = nakama::events() {
+            match event {
+                nakama::Event::Leave(leaver) => {
+                    self.others.remove(&leaver);
+                }
+                nakama::Event::Join(joined) => {
+                    self.network_cache.flush();
+                    self.others.insert(joined, Other::new());
+                }
+            }
+        }
 
-                    let facing = state.facing();
-                    let shooting = state.shooting();
-                    let pos = vec2(state.x() as f32, state.y() as f32);
+        while let Some(msg) = nakama::try_recv() {
+            if let Some(other) = self.others.get_mut(&msg.user_id) {
+                match msg.opcode as i32 {
+                    message::Move::OPCODE => {
+                        let message::Move(data) = DeBin::deserialize_bin(&msg.data).unwrap();
+                        let state = PlayerStateBits(data);
 
-                    self.players[0].pos = pos;
-                    self.players[0].facing = facing;
-                    if shooting {
-                        self.spawn_bullet(pos, facing);
+                        let facing = state.facing();
+                        let shooting = state.shooting();
+                        let pos = vec2(state.x() as f32, state.y() as f32);
+
+                        other.pos = pos;
+                        other.facing = facing;
+                        if shooting {
+                            self.spawn_bullet(pos, facing);
+                        }
                     }
-                }
-                Message::SelfDamage(health) => {
-                    self.players[0].health = health as i32;
-                }
-                Message::Died => {
-                    self.score.1 += 1;
+                    message::SelfDamage::OPCODE => {
+                        let message::SelfDamage(health) =
+                            DeBin::deserialize_bin(&msg.data).unwrap();
+
+                        other.health = health as i32;
+                    }
+                    message::Died::OPCODE => {}
+                    opcode => {
+                        warn!("Unknown opcode: {}", opcode);
+                    }
                 }
             }
         }
@@ -267,7 +314,7 @@ impl World {
             }
         }
 
-        // draw other players
+        // draw other others
         for (
             other_id,
             Other {
@@ -276,7 +323,7 @@ impl World {
                 health,
                 ..
             },
-        ) in self.players.iter().enumerate()
+        ) in self.others.values().enumerate()
         {
             draw_text_ex(
                 &format!("player {}", other_id),
@@ -371,7 +418,7 @@ impl World {
             let explosions = &mut self.explosions;
             let collision_world = &mut self.collision_world;
             let player = &mut self.player;
-            let players = &mut self.players;
+            let others = &mut self.others;
 
             self.bullets.retain(|bullet| {
                 let self_damaged =
@@ -382,7 +429,7 @@ impl World {
                 }
 
                 if collision_world.solid_at(bullet.pos)
-                    || players.iter().any(|other| {
+                    || others.values().any(|other| {
                         Rect::new(other.pos.x, other.pos.y, 8.0, 8.0).contains(bullet.pos)
                     })
                     || self_damaged
@@ -407,10 +454,10 @@ async fn main() {
             clear_background(BLACK);
             draw_text(
                 &format!(
-                    "Waiting for other players to connect {}",
+                    "Connecting {}",
                     ".".repeat(((get_time() * 2.0) as usize) % 4)
                 ),
-                30.0,
+                screen_width() / 2.0 - 100.0,
                 screen_height() / 2.0,
                 40.,
                 WHITE,
@@ -437,15 +484,6 @@ async fn main() {
         world.update();
 
         set_default_camera();
-
-        draw_text(&format!("{}", world.score.1), 40.0, 80.0, 70., WHITE);
-        draw_text(
-            &format!("{}", world.score.0),
-            screen_width() - 70.0,
-            80.0,
-            60.,
-            Color::new(0.9, 0.8, 0.8, 1.0),
-        );
 
         profiler::profiler(profiler::ProfilerParams {
             fps_counter_pos: vec2(50.0, 20.0),

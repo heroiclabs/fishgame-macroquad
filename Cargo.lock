@@ -40,6 +40,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 
 [[package]]
+name = "bumpalo"
+version = "3.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e8c087f005730276d1096a652e92a8bacee2e2472bcc9715a74d2bec38b5820"
+
+[[package]]
 name = "byteorder"
 version = "1.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -150,8 +156,9 @@ checksum = "89203f3fba0a3795506acaad8ebce3c80c0af93f994d5a1d7a0b1eeb23271929"
 [[package]]
 name = "macroquad"
 version = "0.3.0-alpha.14"
-source = "git+https://github.com/not-fl3/macroquad.git#05e69c49c5e8b5281f7f6645882168628e45b89f"
+source = "git+https://github.com/not-fl3/macroquad.git#8d2e1b06c59f6a38b7e3ebc061131e85bc56bcc3"
 dependencies = [
+ "bumpalo",
  "fontdue",
  "glam",
  "image",
@@ -163,7 +170,7 @@ dependencies = [
 [[package]]
 name = "macroquad-particles"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#05e69c49c5e8b5281f7f6645882168628e45b89f"
+source = "git+https://github.com/not-fl3/macroquad.git#8d2e1b06c59f6a38b7e3ebc061131e85bc56bcc3"
 dependencies = [
  "macroquad",
  "nanoserde",
@@ -172,7 +179,7 @@ dependencies = [
 [[package]]
 name = "macroquad-profiler"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#05e69c49c5e8b5281f7f6645882168628e45b89f"
+source = "git+https://github.com/not-fl3/macroquad.git#8d2e1b06c59f6a38b7e3ebc061131e85bc56bcc3"
 dependencies = [
  "macroquad",
  "megaui-macroquad",
@@ -181,7 +188,7 @@ dependencies = [
 [[package]]
 name = "macroquad-tiled"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#05e69c49c5e8b5281f7f6645882168628e45b89f"
+source = "git+https://github.com/not-fl3/macroquad.git#8d2e1b06c59f6a38b7e3ebc061131e85bc56bcc3"
 dependencies = [
  "macroquad",
  "nanoserde",
@@ -190,7 +197,7 @@ dependencies = [
 [[package]]
 name = "macroquad_macro"
 version = "0.1.2"
-source = "git+https://github.com/not-fl3/macroquad.git#05e69c49c5e8b5281f7f6645882168628e45b89f"
+source = "git+https://github.com/not-fl3/macroquad.git#8d2e1b06c59f6a38b7e3ebc061131e85bc56bcc3"
 
 [[package]]
 name = "megaui"
@@ -303,7 +310,7 @@ dependencies = [
 [[package]]
 name = "physics-platformer"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#05e69c49c5e8b5281f7f6645882168628e45b89f"
+source = "git+https://github.com/not-fl3/macroquad.git#8d2e1b06c59f6a38b7e3ebc061131e85bc56bcc3"
 dependencies = [
  "macroquad",
 ]

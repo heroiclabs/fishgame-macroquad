@@ -79,7 +79,7 @@ mod nakama {
     }
 }
 
-// just enough of stabs to run the game on PC, but no real networking involved
+// just enough of stubs to run the game on PC, but no real networking involved
 #[cfg(not(target_arch = "wasm32"))]
 mod nakama {
     use super::{Event, MatchData};

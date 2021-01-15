@@ -2,7 +2,7 @@ use macroquad::{
     experimental::{
         collections::storage,
         coroutines::{start_coroutine, wait_seconds, Coroutine},
-        scene,
+        scene::{self, RefMut},
         state_machine::{State, StateMachine},
     },
     prelude::*,
@@ -11,14 +11,100 @@ use physics_platformer::Actor;
 
 use crate::{consts, Resources};
 
-pub(crate) struct Player {
+#[derive(Default, Debug, Clone)]
+pub struct Input {
+    jump: bool,
+    fire: bool,
+    left: bool,
+    right: bool,
+}
+
+pub struct Fish {
     collider: Actor,
     pos: Vec2,
     speed: Vec2,
     facing: bool,
-    health: i32,
+    weapon: Option<i32>,
+    input: Input,
+}
 
-    state_machine: StateMachine<Player>,
+impl Fish {
+    pub fn new(spawner_pos: Vec2) -> Fish {
+        let mut resources = storage::get_mut::<Resources>().unwrap();
+
+        Fish {
+            collider: resources.collision_world.add_actor(spawner_pos, 8, 8),
+            pos: spawner_pos,
+            speed: vec2(0., 0.),
+            facing: true,
+            weapon: None,
+            input: Default::default(),
+        }
+    }
+
+    pub fn pos(&self) -> Vec2 {
+        self.pos
+    }
+
+    pub fn set_pos(&mut self, pos: Vec2) {
+        self.pos = pos;
+    }
+
+    pub fn set_facing(&mut self, facing: bool) {
+        self.facing = facing;
+    }
+
+    pub fn disarm(&mut self) {
+        self.weapon = None;
+    }
+
+    pub fn pick_weapon(&mut self) {
+        self.weapon = Some(3);
+    }
+
+    pub fn armed(&self) -> bool {
+        self.weapon.is_some()
+    }
+
+    pub fn draw(&mut self) {
+        let resources = storage::get_mut::<Resources>().unwrap();
+
+        if self.facing {
+            resources.tiled_map.spr(
+                "tileset",
+                consts::PLAYER_SPRITE,
+                Rect::new(self.pos.x, self.pos.y, 8.0, 8.0),
+            );
+
+            if self.weapon.is_some() {
+                resources.tiled_map.spr(
+                    "tileset",
+                    consts::PLAYER_SPRITE + 2,
+                    Rect::new(self.pos.x + 2.5, self.pos.y, 8.0, 8.0),
+                );
+            }
+        } else {
+            resources.tiled_map.spr(
+                "tileset",
+                consts::PLAYER_SPRITE,
+                Rect::new(self.pos.x + 8.0, self.pos.y, -8.0, 8.0),
+            );
+
+            if self.weapon.is_some() {
+                resources.tiled_map.spr(
+                    "tileset",
+                    consts::PLAYER_SPRITE + 2,
+                    Rect::new(self.pos.x + 8.0 - 2.5, self.pos.y, -8.0, 8.0),
+                );
+            }
+        }
+    }
+}
+
+pub struct Player {
+    pub fish: Fish,
+
+    state_machine: StateMachine<RefMut<Player>>,
 }
 
 impl Player {
@@ -26,13 +112,12 @@ impl Player {
     const ST_DEATH: usize = 1;
 
     pub fn new() -> Player {
-        let mut resources = storage::get_mut::<Resources>().unwrap();
         let spawner_pos = {
+            let resources = storage::get_mut::<Resources>().unwrap();
             let objects = &resources.tiled_map.layers["logic"].objects;
             let macroquad_tiled::Object::Rect {
                 world_x, world_y, ..
             } = objects[rand::gen_range(0, objects.len()) as usize];
-
             vec2(world_x, world_y)
         };
 
@@ -44,35 +129,39 @@ impl Player {
         );
 
         Player {
-            collider: resources.collision_world.add_actor(spawner_pos, 8, 8),
-            pos: spawner_pos,
-            speed: vec2(0., 0.),
-            facing: true,
-            health: 100,
-
+            fish: Fish::new(spawner_pos),
             state_machine,
         }
     }
 
     pub fn pos(&self) -> Vec2 {
-        self.pos
+        self.fish.pos
     }
 
     pub fn facing(&self) -> bool {
-        self.facing
+        self.fish.facing
     }
 
-    pub fn health(&self) -> i32 {
-        self.health
+    pub fn pick_weapon(&mut self) {
+        self.fish.weapon = Some(3);
     }
 
-    pub fn damage(&mut self, amount: i32) {
-        self.health -= amount;
+    pub fn is_dead(&self) -> bool {
+        self.state_machine.state() == Self::ST_DEATH
     }
 
-    fn death_coroutine(&mut self) -> Coroutine {
-        let pos = self.pos;
+    pub fn kill(&mut self) {
+        self.state_machine.set_state(Self::ST_DEATH);
+    }
 
+    pub fn armed(&self) -> bool {
+        self.fish.weapon.is_some()
+    }
+
+    fn death_coroutine(node: &mut RefMut<Player>) -> Coroutine {
+        let pos = node.fish.pos;
+
+        let handle = node.handle();
         let coroutine = async move {
             {
                 let mut resources = storage::get_mut::<Resources>().unwrap();
@@ -83,9 +172,9 @@ impl Player {
             wait_seconds(0.5).await;
 
             let mut resources = storage::get_mut::<Resources>().unwrap();
-            let mut this = coroutines::active_node::<Player>().unwrap();
+            let mut this = scene::get_node(handle).unwrap();
 
-            this.pos = {
+            this.fish.pos = {
                 let objects = &resources.tiled_map.layers["logic"].objects;
                 let macroquad_tiled::Object::Rect {
                     world_x, world_y, ..
@@ -93,115 +182,123 @@ impl Player {
 
                 vec2(world_x, world_y)
             };
-            this.health = 100;
             resources
                 .collision_world
-                .set_actor_position(this.collider, this.pos);
+                .set_actor_position(this.fish.collider, this.fish.pos);
             this.state_machine.set_state(Self::ST_NORMAL);
         };
 
         start_coroutine(coroutine)
     }
 
-    fn update_normal(&mut self, _dt: f32) {
+    fn update_normal(node: &mut RefMut<Player>, _dt: f32) {
         let mut resources = storage::get_mut::<Resources>().unwrap();
 
+        // self destruct, for debugging only
         if is_key_pressed(KeyCode::Y) {
-            self.health = 0;
+            node.kill();
         }
-        self.pos = resources.collision_world.actor_pos(self.collider);
 
-        if self.health <= 0 {
-            self.state_machine.set_state(Self::ST_DEATH);
-        }
+        let fish = &mut node.fish;
+
+        fish.pos = resources.collision_world.actor_pos(fish.collider);
 
         let on_ground = resources
             .collision_world
-            .collide_check(self.collider, self.pos + vec2(0., 1.));
+            .collide_check(fish.collider, fish.pos + vec2(0., 1.));
 
-        if self.speed.x < 0.0 {
-            self.facing = false;
+        if fish.speed.x < 0.0 {
+            fish.facing = false;
         }
-        if self.speed.x > 0.0 {
-            self.facing = true;
+        if fish.speed.x > 0.0 {
+            fish.facing = true;
         }
 
         if on_ground == false {
-            self.speed.y += consts::GRAVITY * get_frame_time();
+            fish.speed.y += consts::GRAVITY * get_frame_time();
         }
 
-        if is_key_down(KeyCode::Right) {
-            self.speed.x = consts::RUN_SPEED;
-        } else if is_key_down(KeyCode::Left) {
-            self.speed.x = -consts::RUN_SPEED;
+        if fish.input.right {
+            fish.speed.x = consts::RUN_SPEED;
+        } else if fish.input.left {
+            fish.speed.x = -consts::RUN_SPEED;
         } else {
-            self.speed.x = 0.;
+            fish.speed.x = 0.;
         }
 
-        if is_key_pressed(KeyCode::Space) {
+        if fish.input.jump {
             if on_ground {
-                self.speed.y = -consts::JUMP_SPEED;
+                fish.speed.y = -consts::JUMP_SPEED;
             }
         }
 
         resources
             .collision_world
-            .move_h(self.collider, self.speed.x * get_frame_time());
+            .move_h(fish.collider, fish.speed.x * get_frame_time());
         if !resources
             .collision_world
-            .move_v(self.collider, self.speed.y * get_frame_time())
+            .move_v(fish.collider, fish.speed.y * get_frame_time())
         {
-            self.speed.y = 0.0;
+            fish.speed.y = 0.0;
         }
 
-        if is_key_pressed(KeyCode::LeftControl) {
-            let mut bullets = scene::find_node_by_type::<crate::Bullets>().unwrap();
-            let pos = resources.collision_world.actor_pos(self.collider);
+        if let Some(weapon) = fish.weapon.as_mut() {
+            if fish.input.fire {
+                if *weapon > 0 {
+                    let mut net_syncronizer =
+                        scene::find_node_by_type::<crate::NetSyncronizer>().unwrap();
+                    net_syncronizer.shoot();
 
-            bullets.spawn_bullet(pos, self.facing);
+                    let mut bullets = scene::find_node_by_type::<crate::Bullets>().unwrap();
+                    let pos = resources.collision_world.actor_pos(fish.collider);
+
+                    bullets.spawn_bullet(pos, fish.facing);
+
+                    *weapon -= 1;
+                }
+
+                if *weapon <= 0 {
+                    resources.disarm_fxses.spawn(fish.pos + vec2(4., 4.));
+                    fish.weapon = None;
+                }
+            }
         }
     }
 
-    fn update_state_machine(&mut self) {
-        StateMachine::update(self, |player| &mut player.state_machine);
+    fn draw_hud(&self) {
+        if let Some(bullets) = self.fish.weapon {
+            let full_color = Color::new(0.9, 0.8, 0.7, 1.0);
+            let empty_color = Color::new(0.9, 0.8, 0.7, 0.2);
+            for i in 0..3 {
+                let color = if i >= bullets {
+                    empty_color
+                } else {
+                    full_color
+                };
+                let x = self.fish.pos.x + 3.0 * i as f32;
+                draw_rectangle(x, self.fish.pos.y - 4.0, 2.0, 2.0, color);
+                draw_rectangle(x, self.fish.pos.y - 4.0, 2.0, 2.0, color);
+                draw_rectangle(x, self.fish.pos.y - 4.0, 2.0, 2.0, color);
+            }
+        }
     }
 }
 
 impl scene::Node for Player {
-    fn draw(&mut self) {
-        let resources = storage::get_mut::<Resources>().unwrap();
+    fn draw(mut node: RefMut<Self>) {
+        node.fish.draw();
 
-        draw_rectangle(
-            self.pos.x as f32 - 4.0,
-            self.pos.y as f32 - 5.0,
-            16.0,
-            2.0,
-            RED,
-        );
-        draw_rectangle(
-            self.pos.x as f32 - 4.0,
-            self.pos.y as f32 - 5.0,
-            self.health as f32 / 100.0 * 16.0,
-            2.0,
-            GREEN,
-        );
-
-        if self.facing {
-            resources.tiled_map.spr(
-                "tileset",
-                consts::PLAYER_SPRITE,
-                Rect::new(self.pos.x, self.pos.y, 8.0, 8.0),
-            );
-        } else {
-            resources.tiled_map.spr(
-                "tileset",
-                consts::PLAYER_SPRITE,
-                Rect::new(self.pos.x + 8.0, self.pos.y, -8.0, 8.0),
-            );
-        }
+        node.draw_hud();
     }
 
-    fn update(&mut self) {
-        self.update_state_machine();
+    fn update(mut node: RefMut<Self>) {
+        node.fish.input.jump = is_key_pressed(KeyCode::Space)
+            || is_key_pressed(KeyCode::W)
+            || is_key_pressed(KeyCode::Up);
+        node.fish.input.fire = is_key_pressed(KeyCode::LeftControl) || is_key_pressed(KeyCode::F);
+        node.fish.input.left = is_key_down(KeyCode::Left) || is_key_down(KeyCode::A);
+        node.fish.input.right = is_key_down(KeyCode::Right) || is_key_down(KeyCode::D);
+
+        StateMachine::update_detached(&mut node, |node| &mut node.state_machine)
     }
 }

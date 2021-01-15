@@ -17,6 +17,7 @@ mod nakama {
 
     extern "C" {
         fn nakama_is_connected() -> bool;
+        fn nakama_self_id() -> JsObject;
         fn nakama_send(opcode: i32, data: JsObject);
         fn nakama_try_recv() -> JsObject;
         fn nakama_events() -> JsObject;
@@ -25,11 +26,19 @@ mod nakama {
 
     #[no_mangle]
     pub extern "C" fn quad_nakama_crate_version() -> u32 {
-        (0 << 24) + (1 << 16) + 0
+        (0 << 24) + (1 << 16) + 1
     }
 
     pub fn connected() -> bool {
         unsafe { nakama_is_connected() }
+    }
+
+    pub fn self_id() -> String {
+        let mut id = String::new();
+        let js_obj = unsafe { nakama_self_id() };
+        js_obj.to_string(&mut id);
+
+        id
     }
 
     pub fn send(opcode: i32, data: &[u8]) {
@@ -83,10 +92,14 @@ mod nakama {
 #[cfg(not(target_arch = "wasm32"))]
 mod nakama {
     use super::{Event, MatchData};
+    use macroquad::experimental::collections::storage;
 
-    #[no_mangle]
-    pub extern "C" fn quad_nakama_crate_version() -> u32 {
-        (0 << 24) + (1 << 16) + 0
+    struct Wtf {
+        spawned: bool,
+    }
+
+    pub fn self_id() -> String {
+        "aaa self".to_string()
     }
 
     pub fn send(_opcode: i32, _data: &[u8]) {}
@@ -98,11 +111,26 @@ mod nakama {
     }
 
     pub fn try_recv() -> Option<MatchData> {
+        if storage::get::<Wtf>().is_none() {
+            storage::store(Wtf { spawned: false });
+        }
+        let wtf = storage::get_mut::<Wtf>().unwrap();
+
+        if wtf.spawned {}
         None
     }
 
     pub fn events() -> Option<Event> {
-        None
+        if storage::get::<Wtf>().is_none() {
+            storage::store(Wtf { spawned: false });
+        }
+        let mut wtf = storage::get_mut::<Wtf>().unwrap();
+
+        if wtf.spawned {
+            return None;
+        }
+        wtf.spawned = true;
+        return Some(Event::Join("other".to_string()));
     }
 }
 

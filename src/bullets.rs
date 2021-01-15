@@ -1,9 +1,9 @@
 use macroquad::{
-    experimental::{collections::storage, scene},
+    experimental::{collections::storage, scene::RefMut},
     prelude::*,
 };
 
-use crate::{consts, NetSyncronizer, Player, Resources};
+use crate::{consts, Player, RemotePlayer, Resources};
 
 struct Bullet {
     pos: Vec2,
@@ -12,7 +12,7 @@ struct Bullet {
     lifetime: f32,
 }
 
-pub(crate) struct Bullets {
+pub struct Bullets {
     player: scene::Handle<Player>,
     bullets: Vec<Bullet>,
 }
@@ -36,13 +36,13 @@ impl Bullets {
             speed: dir * consts::BULLET_SPEED,
             lived: 0.0,
             lifetime: 0.7,
-        })
+        });
     }
 }
 
 impl scene::Node for Bullets {
-    fn draw(&mut self) {
-        for bullet in &self.bullets {
+    fn draw(node: RefMut<Self>) {
+        for bullet in &node.bullets {
             draw_circle(
                 bullet.pos.x,
                 bullet.pos.y,
@@ -52,28 +52,28 @@ impl scene::Node for Bullets {
         }
     }
 
-    fn update(&mut self) {
+    fn update(mut node: RefMut<Self>) {
         let mut resources = storage::get_mut::<Resources>().unwrap();
-        let mut player = scene::get_node(self.player).unwrap();
-        let others = scene::find_node_by_type::<NetSyncronizer>().unwrap();
+        let mut player = scene::get_node(node.player).unwrap();
+        let mut others = scene::find_nodes_by_type::<RemotePlayer>();
 
-        for bullet in &mut self.bullets {
+        for bullet in &mut node.bullets {
             bullet.pos += bullet.speed * get_frame_time();
             bullet.lived += get_frame_time();
         }
 
-        self.bullets.retain(|bullet| {
+        node.bullets.retain(|bullet| {
             let self_damaged =
                 Rect::new(player.pos().x, player.pos().y, 8., 8.).contains(bullet.pos);
 
             if self_damaged {
-                player.damage(5);
+                player.kill();
             }
 
             if resources.collision_world.solid_at(bullet.pos)
-                || others
-                    .others()
-                    .any(|other| Rect::new(other.pos.x, other.pos.y, 8.0, 8.0).contains(bullet.pos))
+                || others.any(|other| {
+                    Rect::new(other.fish.pos().x, other.fish.pos().y, 8.0, 8.0).contains(bullet.pos)
+                })
                 || self_damaged
             {
                 resources.hit_fxses.spawn(bullet.pos);

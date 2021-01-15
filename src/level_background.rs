@@ -1,5 +1,5 @@
 use macroquad::{
-    experimental::{collections::storage, scene},
+    experimental::{collections::storage, scene::{self, RefMut}},
     prelude::*,
 };
 
@@ -14,7 +14,7 @@ impl LevelBackground {
 }
 
 impl scene::Node for LevelBackground {
-    fn draw(&mut self) {
+    fn draw(_node: RefMut<Self>) {
         let resources = storage::get_mut::<Resources>().unwrap();
 
         resources

@@ -156,7 +156,7 @@ checksum = "89203f3fba0a3795506acaad8ebce3c80c0af93f994d5a1d7a0b1eeb23271929"
 [[package]]
 name = "macroquad"
 version = "0.3.0-alpha.14"
-source = "git+https://github.com/not-fl3/macroquad.git#8d2e1b06c59f6a38b7e3ebc061131e85bc56bcc3"
+source = "git+https://github.com/not-fl3/macroquad.git#77b6cda6bf6adb04d6f5869e66d4d58b97206476"
 dependencies = [
  "bumpalo",
  "fontdue",
@@ -170,7 +170,7 @@ dependencies = [
 [[package]]
 name = "macroquad-particles"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#8d2e1b06c59f6a38b7e3ebc061131e85bc56bcc3"
+source = "git+https://github.com/not-fl3/macroquad.git#77b6cda6bf6adb04d6f5869e66d4d58b97206476"
 dependencies = [
  "macroquad",
  "nanoserde",
@@ -179,7 +179,7 @@ dependencies = [
 [[package]]
 name = "macroquad-profiler"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#8d2e1b06c59f6a38b7e3ebc061131e85bc56bcc3"
+source = "git+https://github.com/not-fl3/macroquad.git#77b6cda6bf6adb04d6f5869e66d4d58b97206476"
 dependencies = [
  "macroquad",
  "megaui-macroquad",
@@ -188,7 +188,7 @@ dependencies = [
 [[package]]
 name = "macroquad-tiled"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#8d2e1b06c59f6a38b7e3ebc061131e85bc56bcc3"
+source = "git+https://github.com/not-fl3/macroquad.git#77b6cda6bf6adb04d6f5869e66d4d58b97206476"
 dependencies = [
  "macroquad",
  "nanoserde",
@@ -197,13 +197,13 @@ dependencies = [
 [[package]]
 name = "macroquad_macro"
 version = "0.1.2"
-source = "git+https://github.com/not-fl3/macroquad.git#8d2e1b06c59f6a38b7e3ebc061131e85bc56bcc3"
+source = "git+https://github.com/not-fl3/macroquad.git#77b6cda6bf6adb04d6f5869e66d4d58b97206476"
 
 [[package]]
 name = "megaui"
-version = "0.2.17"
+version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "773fdc70150ad461de1a0a73ee7df6c8a025ae962102162f43e2d9419a9784db"
+checksum = "e2a64cb54511efc5e729be417569970153b5eee51ee4f060add0e652f4f50e22"
 dependencies = [
  "miniquad_text_rusttype",
 ]
@@ -310,7 +310,7 @@ dependencies = [
 [[package]]
 name = "physics-platformer"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#8d2e1b06c59f6a38b7e3ebc061131e85bc56bcc3"
+source = "git+https://github.com/not-fl3/macroquad.git#77b6cda6bf6adb04d6f5869e66d4d58b97206476"
 dependencies = [
  "macroquad",
 ]

@@ -28,5 +28,5 @@ macroquad = { git = "https://github.com/not-fl3/macroquad.git" }
 # [patch.crates-io]
 # macroquad = { path = "../macroquad" }
 # #miniquad = { path = "../miniquad" }
-# #megaui = { path = "../megaui" }
+# megaui = { path = "../megaui" }
 # sapp-jsutils = { path = "../sapp-jsutils" }

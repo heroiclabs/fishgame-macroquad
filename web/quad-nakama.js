@@ -31,43 +31,12 @@ async function init_nakama() {
         console.info("Received message", message);
     };
 
-    // try to read and join persisted one-for-all match
-    try {
-        const objects = await client.readStorageObjects(session, {
-            "object_ids": [{
-                "collection": "matches",
-                "key": "showcase_match",
-                "user_id": session.user_id
-            }]
-        });
+    var response = await client.rpc(session, "dev_match_id", {});
+    console.log(response);
+    match = await socket.joinMatch(response.payload.match_id);
+    match_id = match.match_id;
+    console.log("Joined match, id: %o", match_id);
 
-        const persisted_match_id = objects.objects[0].value.match_id;
-        match = await socket.joinMatch(persisted_match_id);
-        console.log("Joined match, id: %o", persisted_match_id);
-        match_id = persisted_match_id;
-    } catch(err) {
-        // usually this is something like match id invalid - and this is fine, everyone left the match and its stale now
-        console.log(err);
-    }
-
-    // if one-for-all match is somehow broken - create a new one and update persisted record
-    if (match_id == undefined) {
-        var response = await socket.createMatch();
-
-        const object_ids = await client.writeStorageObjects(session, [
-            {
-                "collection": "matches",
-                "key": "showcase_match",
-                "value": { "match_id": response.match_id },
-                "permission_read": 2,
-                "permission_write": 1
-            }
-        ]);
-
-        match_id = response.match_id;
-        match = await socket.joinMatch(match_id);
-        console.log("Joined match, id: %o", match_id);
-    }
 
     console.log(match.self.session_id);
     match.presences.forEach((presence) => {
@@ -120,6 +89,10 @@ function nakama_is_connected() {
     return match_id != undefined;
 }
 
+function nakama_self_id() {
+    return js_object(match.self.session_id);
+}
+
 function nakama_try_recv() {
     if (received_buffer.length != 0) {
         return js_object(received_buffer.shift())
@@ -145,11 +118,12 @@ function nakama_send(opcode, data) {
 
 function register_plugin (importObject) {
     importObject.env.nakama_is_connected = nakama_is_connected;
+    importObject.env.nakama_self_id = nakama_self_id;
     importObject.env.nakama_send = nakama_send;
     importObject.env.nakama_try_recv = nakama_try_recv;
     importObject.env.nakama_events = nakama_events;
 }
 
-miniquad_add_plugin({ register_plugin, version: "0.1.0", name: "quad_nakama" });
+miniquad_add_plugin({ register_plugin, version: "0.1.1", name: "quad_nakama" });
 
 init_nakama();

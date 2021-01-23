@@ -32,7 +32,7 @@ impl Bullets {
             vec2(-1.0, 0.0)
         };
         self.bullets.push(Bullet {
-            pos: pos + vec2(4.0, 4.0) + dir * 8.0,
+            pos: pos + vec2(16.0, 32.0) + dir * 32.0,
             speed: dir * consts::BULLET_SPEED,
             lived: 0.0,
             lifetime: 0.7,
@@ -46,7 +46,7 @@ impl scene::Node for Bullets {
             draw_circle(
                 bullet.pos.x,
                 bullet.pos.y,
-                1.,
+                4.,
                 Color::new(1.0, 1.0, 0.8, 1.0),
             );
         }
@@ -64,7 +64,7 @@ impl scene::Node for Bullets {
 
         node.bullets.retain(|bullet| {
             let self_damaged =
-                Rect::new(player.pos().x, player.pos().y, 8., 8.).contains(bullet.pos);
+                Rect::new(player.pos().x, player.pos().y, 20., 64.).contains(bullet.pos);
 
             if self_damaged {
                 player.kill();
@@ -72,7 +72,7 @@ impl scene::Node for Bullets {
 
             if resources.collision_world.solid_at(bullet.pos)
                 || others.any(|other| {
-                    Rect::new(other.fish.pos().x, other.fish.pos().y, 8.0, 8.0).contains(bullet.pos)
+                    Rect::new(other.pos().x, other.pos().y, 20.0, 64.0).contains(bullet.pos)
                 })
                 || self_damaged
             {

@@ -43,11 +43,26 @@ impl scene::Node for GlobalEvents {
             && node.spawned_items.len() < 3
         {
             let resources = storage::get::<Resources>().unwrap();
+
+            let tilewidth = resources.tiled_map.raw_tiled_map.tilewidth as f32;
+            let w = resources.tiled_map.raw_tiled_map.width as f32;
+            let tileheight = resources.tiled_map.raw_tiled_map.tileheight as f32;
+            let h = resources.tiled_map.raw_tiled_map.height as f32;
+
             let pos = loop {
-                let pos = vec2(rand::gen_range(20., 300.), rand::gen_range(20., 120.));
-                if resources.collision_world.collide_solids(pos, 8, 8) == false
-                    && (resources.collision_world.solid_at(pos + vec2(0., 17.))
-                        || resources.collision_world.solid_at(pos + vec2(0., 23.)))
+                let x = rand::gen_range(0, w as i32) as f32;
+                let y = rand::gen_range(0, h as i32 - 6) as f32;
+
+                let pos = vec2((x + 0.5) * tilewidth, (y - 0.5) * tileheight);
+                if resources
+                    .collision_world
+                    .collide_solids(pos, tilewidth as _, tileheight as _)
+                    == false
+                    && resources.collision_world.collide_solids(
+                        pos,
+                        tilewidth as _,
+                        tileheight as i32 * 3,
+                    )
                 {
                     break pos;
                 }
@@ -75,7 +90,11 @@ impl scene::Node for GlobalEvents {
             }
             let item = item.unwrap();
 
-            if player.pos().distance(item.pos) < 10.0 {
+            let collide = |player: Vec2, pickup: Vec2| {
+                (player + vec2(16., 32.)).distance(pickup + vec2(16., 16.)) < 60.
+            };
+
+            if collide(player.pos(), item.pos) {
                 player.pick_weapon();
                 item.delete();
 
@@ -84,7 +103,7 @@ impl scene::Node for GlobalEvents {
                 return false;
             }
 
-            let other = others.find(|other| other.fish.pos().distance(item.pos) < 10.0);
+            let other = others.find(|other| collide(other.pos(), item.pos));
 
             if let Some(other) = other {
                 item.delete();

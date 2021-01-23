@@ -62,16 +62,24 @@ impl scene::Node for Pickup {
 
         resources.tiled_map.spr_ex(
             "tileset",
-            Rect::new(1.0 * 8.0, 6.0 * 8.0, 8.0, 8.0),
+            Rect::new(0.0 * 32.0, 6.0 * 32.0, 32.0, 32.0),
             Rect::new(
-                node.pos.x - (8.0 * node.visual_scale - 8.) / 2.,
-                node.pos.y - (8.0 * node.visual_scale - 8.) / 2.,
-                8.0 * node.visual_scale,
-                8.0 * node.visual_scale,
+                node.pos.x - (32.0 * node.visual_scale - 32.) / 2.,
+                node.pos.y - (32.0 * node.visual_scale - 32.) / 2.,
+                32.0 * node.visual_scale,
+                32.0 * node.visual_scale,
             ),
         );
-        resources
-            .tiled_map
-            .spr("tileset", 122, Rect::new(node.pos.x, node.pos.y, 8.0, 8.0));
+        draw_texture_ex(
+            resources.gun,
+            node.pos.x,
+            node.pos.y + 8.,
+            WHITE,
+            DrawTextureParams {
+                source: Some(Rect::new(0.0, 0.0, 64., 32.)),
+                dest_size: Some(vec2(32., 16.)),
+                ..Default::default()
+            },
+        );
     }
 }

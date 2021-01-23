@@ -31,7 +31,7 @@ async function init_nakama() {
         console.info("Received message", message);
     };
 
-    var response = await client.rpc(session, "dev_match_id", {});
+    var response = await client.rpc(session, "public_match_id", {});
     console.log(response);
     match = await socket.joinMatch(response.payload.match_id);
     match_id = match.match_id;

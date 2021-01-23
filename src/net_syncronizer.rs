@@ -233,9 +233,7 @@ impl scene::Node for NetSyncronizer {
                         let mut resources = storage::get_mut::<Resources>().unwrap();
 
                         let leaver = scene::get_node::<RemotePlayer>(leaver).unwrap();
-                        resources
-                            .explosion_fxses
-                            .spawn(leaver.fish.pos() + vec2(4., 4.));
+                        resources.explosion_fxses.spawn(leaver.pos() + vec2(15., 33.));
 
                         leaver.delete();
                     }
@@ -257,7 +255,7 @@ impl scene::Node for NetSyncronizer {
                 warn!("id: {}", id);
             }
             for player in scene::find_nodes_by_type::<RemotePlayer>() {
-                warn!("players: {} {:?}", &player.network_id, player.fish.pos());
+                warn!("players: {} {:?}", &player.network_id, player.pos());
             }
         }
 
@@ -275,16 +273,16 @@ impl scene::Node for NetSyncronizer {
                         let armed = state.weapon();
                         let pos = vec2(state.x() as f32, state.y() as f32);
 
-                        other.fish.set_pos(pos);
-                        other.fish.set_facing(facing);
+                        other.set_pos(pos);
+                        other.set_facing(facing);
 
-                        if other.fish.armed() && armed == false {
+                        if other.armed() && armed == false {
                             let mut resources = storage::get_mut::<Resources>().unwrap();
-                            resources.disarm_fxses.spawn(pos + vec2(4., 4.));
-                            other.fish.disarm();
+                            resources.disarm_fxses.spawn(pos + vec2(16., 33.));
+                            other.disarm();
                         }
-                        if other.fish.armed() == false && armed {
-                            other.fish.pick_weapon();
+                        if other.armed() == false && armed {
+                            other.pick_weapon();
                         }
                         if shooting {
                             let mut bullets = scene::find_node_by_type::<crate::Bullets>().unwrap();
@@ -298,9 +296,7 @@ impl scene::Node for NetSyncronizer {
                     message::Died::OPCODE => {
                         let mut resources = storage::get_mut::<Resources>().unwrap();
 
-                        resources
-                            .explosion_fxses
-                            .spawn(other.fish.pos() + vec2(4., 4.));
+                        resources.explosion_fxses.spawn(other.pos() + vec2(15., 33.));
                     }
                     message::SpawnItem::OPCODE => {
                         let message::SpawnItem { id, x, y } =

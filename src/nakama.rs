@@ -92,45 +92,19 @@ mod nakama {
 #[cfg(not(target_arch = "wasm32"))]
 mod nakama {
     use super::{Event, MatchData};
-    use macroquad::experimental::collections::storage;
-
-    struct Wtf {
-        spawned: bool,
-    }
 
     pub fn self_id() -> String {
-        "aaa self".to_string()
+        "self".to_string()
     }
 
-    pub fn send(_opcode: i32, _data: &[u8]) {}
-
-    pub fn send_bin<T: nanoserde::SerBin>(opcode: i32, data: &T) {
-        use nanoserde::SerBin;
-
-        send(opcode, &SerBin::serialize_bin(data));
-    }
+    pub fn send_bin<T: nanoserde::SerBin>(_opcode: i32, _data: &T) {}
 
     pub fn try_recv() -> Option<MatchData> {
-        if storage::get::<Wtf>().is_none() {
-            storage::store(Wtf { spawned: false });
-        }
-        let wtf = storage::get_mut::<Wtf>().unwrap();
-
-        if wtf.spawned {}
         None
     }
 
     pub fn events() -> Option<Event> {
-        if storage::get::<Wtf>().is_none() {
-            storage::store(Wtf { spawned: false });
-        }
-        let mut wtf = storage::get_mut::<Wtf>().unwrap();
-
-        if wtf.spawned {
-            return None;
-        }
-        wtf.spawned = true;
-        return Some(Event::Join("other".to_string()));
+        None
     }
 }
 

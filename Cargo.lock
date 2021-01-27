@@ -156,7 +156,6 @@ checksum = "89203f3fba0a3795506acaad8ebce3c80c0af93f994d5a1d7a0b1eeb23271929"
 [[package]]
 name = "macroquad"
 version = "0.3.0-alpha.14"
-source = "git+https://github.com/not-fl3/macroquad.git#1ce46bacb4d91c42e979a359b050d4d8a8d88dd4"
 dependencies = [
  "bumpalo",
  "fontdue",
@@ -170,7 +169,6 @@ dependencies = [
 [[package]]
 name = "macroquad-particles"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#1ce46bacb4d91c42e979a359b050d4d8a8d88dd4"
 dependencies = [
  "macroquad",
  "nanoserde",
@@ -179,7 +177,6 @@ dependencies = [
 [[package]]
 name = "macroquad-profiler"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#1ce46bacb4d91c42e979a359b050d4d8a8d88dd4"
 dependencies = [
  "macroquad",
  "megaui-macroquad",
@@ -197,13 +194,10 @@ dependencies = [
 [[package]]
 name = "macroquad_macro"
 version = "0.1.2"
-source = "git+https://github.com/not-fl3/macroquad.git#1ce46bacb4d91c42e979a359b050d4d8a8d88dd4"
 
 [[package]]
 name = "megaui"
 version = "0.2.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2a64cb54511efc5e729be417569970153b5eee51ee4f060add0e652f4f50e22"
 dependencies = [
  "miniquad_text_rusttype",
 ]
@@ -310,7 +304,6 @@ dependencies = [
 [[package]]
 name = "physics-platformer"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#1ce46bacb4d91c42e979a359b050d4d8a8d88dd4"
 dependencies = [
  "macroquad",
 ]
@@ -392,8 +385,6 @@ dependencies = [
 [[package]]
 name = "sapp-jsutils"
 version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95b6538a351f8e2066fb98c07e24ac616896d2ffb49b4843cceb3839e7dc0d65"
 
 [[package]]
 name = "sapp-linux"

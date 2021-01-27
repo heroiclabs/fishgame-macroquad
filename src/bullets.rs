@@ -32,7 +32,7 @@ impl Bullets {
             vec2(-1.0, 0.0)
         };
         self.bullets.push(Bullet {
-            pos: pos + vec2(16.0, 32.0) + dir * 32.0,
+            pos: pos + vec2(16.0, 30.0) + dir * 32.0,
             speed: dir * consts::BULLET_SPEED,
             lived: 0.0,
             lifetime: 0.7,
@@ -65,9 +65,10 @@ impl scene::Node for Bullets {
         node.bullets.retain(|bullet| {
             let self_damaged =
                 Rect::new(player.pos().x, player.pos().y, 20., 64.).contains(bullet.pos);
+            let direction = bullet.pos.x > (player.pos().x + 10.);
 
             if self_damaged {
-                player.kill();
+                player.kill(direction);
             }
 
             if resources.collision_world.solid_at(bullet.pos)

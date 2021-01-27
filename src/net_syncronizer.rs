@@ -33,6 +33,7 @@ bitfield::bitfield! {
     facing, set_facing: 20;
     shooting, set_shooting: 21;
     weapon, set_weapon: 22;
+    dead, set_dead: 23;
 }
 
 #[test]
@@ -211,6 +212,7 @@ impl scene::Node for NetSyncronizer {
                 state.set_facing(player.facing());
                 state.set_shooting(shooting);
                 state.set_weapon(player.armed());
+                state.set_dead(player.is_dead());
 
                 if node.network_cache.sent_position != state.0 {
                     node.network_cache.sent_position = state.0;
@@ -233,7 +235,9 @@ impl scene::Node for NetSyncronizer {
                         let mut resources = storage::get_mut::<Resources>().unwrap();
 
                         let leaver = scene::get_node::<RemotePlayer>(leaver).unwrap();
-                        resources.explosion_fxses.spawn(leaver.pos() + vec2(15., 33.));
+                        resources
+                            .explosion_fxses
+                            .spawn(leaver.pos() + vec2(15., 33.));
 
                         leaver.delete();
                     }
@@ -267,26 +271,23 @@ impl scene::Node for NetSyncronizer {
                     message::Move::OPCODE => {
                         let message::Move(data) = DeBin::deserialize_bin(&msg.data).unwrap();
                         let state = PlayerStateBits(data);
-
-                        let facing = state.facing();
-                        let shooting = state.shooting();
-                        let armed = state.weapon();
                         let pos = vec2(state.x() as f32, state.y() as f32);
 
                         other.set_pos(pos);
-                        other.set_facing(facing);
+                        other.set_facing(state.facing());
+                        other.set_dead(state.dead());
 
-                        if other.armed() && armed == false {
+                        if other.armed() && state.weapon() == false {
                             let mut resources = storage::get_mut::<Resources>().unwrap();
                             resources.disarm_fxses.spawn(pos + vec2(16., 33.));
                             other.disarm();
                         }
-                        if other.armed() == false && armed {
+                        if other.armed() == false && state.weapon() {
                             other.pick_weapon();
                         }
-                        if shooting {
+                        if state.shooting() {
                             let mut bullets = scene::find_node_by_type::<crate::Bullets>().unwrap();
-                            bullets.spawn_bullet(pos, facing);
+                            bullets.spawn_bullet(pos, state.facing());
                         }
                     }
                     message::SelfDamage::OPCODE => {
@@ -296,7 +297,9 @@ impl scene::Node for NetSyncronizer {
                     message::Died::OPCODE => {
                         let mut resources = storage::get_mut::<Resources>().unwrap();
 
-                        resources.explosion_fxses.spawn(other.pos() + vec2(15., 33.));
+                        resources
+                            .explosion_fxses
+                            .spawn(other.pos() + vec2(15., 33.));
                     }
                     message::SpawnItem::OPCODE => {
                         let message::SpawnItem { id, x, y } =

@@ -1,14 +1,18 @@
 use macroquad::{
-    experimental::scene::{self, RefMut},
+    experimental::{
+        collections::storage,
+        scene::{self, RefMut},
+    },
     prelude::*,
 };
 
-use crate::player::Fish;
+use crate::{player::Fish, Resources};
 
 pub struct RemotePlayer {
     pub network_id: String,
     fish: Fish,
 
+    dead: bool,
     pos_delta: Vec2,
     last_move_time: f64,
 }
@@ -18,10 +22,11 @@ impl RemotePlayer {
         let pos = vec2(100., 105.);
 
         RemotePlayer {
-            fish: Fish::new(pos),
+            fish: Fish::new(1, pos),
             network_id,
             pos_delta: vec2(0.0, 0.0),
             last_move_time: 0.0,
+            dead: false,
         }
     }
 
@@ -47,6 +52,10 @@ impl RemotePlayer {
         self.fish.set_facing(facing);
     }
 
+    pub fn set_dead(&mut self, dead: bool) {
+        self.dead = dead;
+    }
+
     pub fn pos(&self) -> Vec2 {
         self.fish.pos()
     }
@@ -69,7 +78,18 @@ impl scene::Node for RemotePlayer {
     }
 
     fn update(mut node: RefMut<Self>) {
-        if get_time() - node.last_move_time > 0.2 || node.pos_delta.length() < 0.01 {
+        if node.dead {
+            let resources = storage::get::<Resources>().unwrap();
+            let on_ground = resources
+                .collision_world
+                .collide_check(node.fish.collider, node.fish.pos() + vec2(0., 1.));
+
+            if on_ground {
+                node.fish.set_animation(3);
+            } else {
+                node.fish.set_animation(2);
+            }
+        } else if get_time() - node.last_move_time > 0.2 || node.pos_delta.length() < 0.01 {
             node.fish.set_animation(0);
         } else {
             node.fish.set_animation(1);

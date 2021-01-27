@@ -5,7 +5,8 @@ var received_buffer = [];
 var events = [];
 
 async function init_nakama() {
-    var client = new nakamajs.Client("defaultkey", "173.0.157.169", 7350);
+    //var client = new nakamajs.Client("defaultkey", "173.0.157.169", 7350);
+    var client = new nakamajs.Client("defaultkey", "127.0.0.1", 7350);
     client.ssl = false;
 
     console.log(client);

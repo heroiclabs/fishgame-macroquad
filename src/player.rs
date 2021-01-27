@@ -23,20 +23,24 @@ pub struct Input {
 pub struct Fish {
     fish_sprite: AnimatedSprite,
     gun_sprite: AnimatedSprite,
-    collider: Actor,
+    gun_fx_sprite: AnimatedSprite,
+    gun_fx: bool,
+    pub collider: Actor,
     pos: Vec2,
     speed: Vec2,
+    on_ground: bool,
+    dead: bool,
     facing: bool,
     weapon: Option<i32>,
     input: Input,
 }
 
 impl Fish {
-    pub fn new(spawner_pos: Vec2) -> Fish {
+    pub fn new(color: u8, spawner_pos: Vec2) -> Fish {
         let mut resources = storage::get_mut::<Resources>().unwrap();
 
         let fish_sprite = AnimatedSprite::new(
-            (resources.whale, 76, 66),
+            (resources.whale_green, 76, 66),
             &[
                 Animation {
                     name: "idle".to_string(),
@@ -50,7 +54,20 @@ impl Fish {
                     frames: 6,
                     fps: 10,
                 },
+                Animation {
+                    name: "death".to_string(),
+                    row: 12,
+                    frames: 3,
+                    fps: 5,
+                },
+                Animation {
+                    name: "death2".to_string(),
+                    row: 14,
+                    frames: 4,
+                    fps: 8,
+                },
             ],
+            true,
         );
         let gun_sprite = AnimatedSprite::new(
             (resources.gun, 92, 32),
@@ -63,16 +80,31 @@ impl Fish {
                 },
                 Animation {
                     name: "shoot".to_string(),
-                    row: 2,
+                    row: 1,
                     frames: 3,
                     fps: 15,
                 },
             ],
+            false,
+        );
+        let gun_fx_sprite = AnimatedSprite::new(
+            (resources.gun, 92, 32),
+            &[Animation {
+                name: "shoot".to_string(),
+                row: 2,
+                frames: 3,
+                fps: 15,
+            }],
+            false,
         );
         Fish {
             fish_sprite,
+            gun_fx_sprite,
+            gun_fx: false,
             gun_sprite,
             collider: resources.collision_world.add_actor(spawner_pos, 30, 54),
+            on_ground: false,
+            dead: false,
             pos: spawner_pos,
             speed: vec2(0., 0.),
             facing: true,
@@ -109,18 +141,30 @@ impl Fish {
         self.weapon.is_some()
     }
 
+    pub fn facing_dir(&self) -> f32 {
+        if self.facing {
+            1.
+        } else {
+            -1.
+        }
+    }
+
     pub fn draw(&mut self) {
         self.fish_sprite
             .draw(self.pos - vec2(25., 10.), self.facing, false);
 
-        if self.weapon.is_some() {
+        if self.dead == false && self.weapon.is_some() {
             let gun_mount_pos = if self.facing {
-                vec2(0., 18.)
+                vec2(0., 16.)
             } else {
-                vec2(-60., 18.)
+                vec2(-60., 16.)
             };
             self.gun_sprite
                 .draw(self.pos + gun_mount_pos, self.facing, false);
+            if self.gun_fx {
+                self.gun_fx_sprite
+                    .draw(self.pos + gun_mount_pos, self.facing, false);
+            }
         }
     }
 }
@@ -135,7 +179,7 @@ pub struct Player {
 impl Player {
     const ST_NORMAL: usize = 0;
     const ST_DEATH: usize = 1;
-    const ST_SHOOT: usize = 1;
+    const ST_SHOOT: usize = 2;
 
     pub fn new() -> Player {
         let spawner_pos = {
@@ -155,11 +199,13 @@ impl Player {
         );
         state_machine.add_state(
             Self::ST_SHOOT,
-            State::new().coroutine(Self::shoot_coroutine),
+            State::new()
+                .update(Self::update_shoot)
+                .coroutine(Self::shoot_coroutine),
         );
 
         Player {
-            fish: Fish::new(spawner_pos),
+            fish: Fish::new(0, spawner_pos),
             jump_grace_timer: 0.,
             state_machine,
         }
@@ -181,7 +227,8 @@ impl Player {
         self.state_machine.state() == Self::ST_DEATH
     }
 
-    pub fn kill(&mut self) {
+    pub fn kill(&mut self, direction: bool) {
+        self.fish.facing = direction;
         self.state_machine.set_state(Self::ST_DEATH);
     }
 
@@ -190,13 +237,39 @@ impl Player {
     }
 
     fn death_coroutine(node: &mut RefMut<Player>) -> Coroutine {
-        let pos = node.fish.pos;
-
         let handle = node.handle();
         let coroutine = async move {
             {
-                let mut resources = storage::get_mut::<Resources>().unwrap();
+                let mut node = scene::get_node(handle).unwrap();
+                node.fish.speed.x = -300. * node.fish.facing_dir();
+                node.fish.speed.y = -150.;
 
+                node.fish.dead = true;
+                node.fish.fish_sprite.set_animation(2);
+            }
+            // give some take for a dead fish to take off the ground
+            wait_seconds(0.1).await;
+
+            // wait until it lands
+            while scene::get_node(handle).unwrap().fish.on_ground == false {
+                next_frame().await;
+            }
+
+            {
+                let mut node = scene::get_node(handle).unwrap();
+                node.fish.fish_sprite.set_animation(3);
+                node.fish.speed = vec2(0., 0.);
+            }
+
+            wait_seconds(0.5).await;
+
+            {
+                let mut resources = storage::get_mut::<Resources>().unwrap();
+                let mut node = scene::get_node(handle).unwrap();
+                let pos = node.fish.pos;
+
+                node.fish.fish_sprite.playing = false;
+                node.fish.speed = vec2(0., 0.);
                 resources.explosion_fxses.spawn(pos + vec2(15., 33.));
             }
 
@@ -213,6 +286,8 @@ impl Player {
 
                 vec2(world_x, world_y)
             };
+            this.fish.fish_sprite.playing = true;
+            this.fish.dead = false;
             resources
                 .collision_world
                 .set_actor_position(this.fish.collider, this.fish.pos);
@@ -225,18 +300,41 @@ impl Player {
     fn shoot_coroutine(node: &mut RefMut<Player>) -> Coroutine {
         let handle = node.handle();
         let coroutine = async move {
-            let mut node = &mut *scene::get_node(handle).unwrap();
-            let weapon = node.fish.weapon.as_mut().unwrap();
-            if *weapon > 0 {
+            {
+                let mut node = &mut *scene::get_node(handle).unwrap();
+
+                node.fish.gun_fx = true;
                 let mut net_syncronizer =
                     scene::find_node_by_type::<crate::NetSyncronizer>().unwrap();
                 net_syncronizer.shoot();
 
                 let mut bullets = scene::find_node_by_type::<crate::Bullets>().unwrap();
                 bullets.spawn_bullet(node.fish.pos, node.fish.facing);
-
-                *weapon -= 1;
+                node.fish.speed.x = -consts::GUN_THROWBACK * node.fish.facing_dir();
             }
+            {
+                let node = &mut *scene::get_node(handle).unwrap();
+                node.fish.gun_sprite.set_animation(1);
+            }
+            for i in 0u32..3 {
+                {
+                    let node = &mut *scene::get_node(handle).unwrap();
+                    node.fish.gun_sprite.set_frame(i);
+                    node.fish.gun_fx_sprite.set_frame(i);
+                }
+
+                wait_seconds(0.08).await;
+            }
+            {
+                let mut node = scene::get_node(handle).unwrap();
+                node.fish.gun_sprite.set_animation(0);
+            }
+
+            let mut node = &mut *scene::get_node(handle).unwrap();
+
+            node.fish.gun_fx = false;
+            let weapon = node.fish.weapon.as_mut().unwrap();
+            *weapon -= 1;
 
             if *weapon <= 0 {
                 let mut resources = storage::get_mut::<Resources>().unwrap();
@@ -252,46 +350,30 @@ impl Player {
         start_coroutine(coroutine)
     }
 
-    fn update_normal(node: &mut RefMut<Player>, dt: f32) {
-        let mut resources = storage::get_mut::<Resources>().unwrap();
+    fn update_shoot(node: &mut RefMut<Player>, _dt: f32) {
+        node.fish.speed.x *= 0.9;
+    }
 
+    fn update_normal(node: &mut RefMut<Player>, _dt: f32) {
         // self destruct, for debugging only
         if is_key_pressed(KeyCode::Y) {
-            node.kill();
+            node.kill(true);
+        }
+        if is_key_pressed(KeyCode::U) {
+            node.kill(false);
         }
 
         let node = &mut **node;
         let fish = &mut node.fish;
 
-        fish.pos = resources.collision_world.actor_pos(fish.collider);
-
-        let on_ground = resources
-            .collision_world
-            .collide_check(fish.collider, fish.pos + vec2(0., 1.));
-
-        if fish.speed.x < 0.0 {
-            fish.facing = false;
-        }
-        if fish.speed.x > 0.0 {
-            fish.facing = true;
-        }
-
-        if on_ground {
-            node.jump_grace_timer = consts::JUMP_GRACE_TIME;
-        } else if node.jump_grace_timer > 0. {
-            node.jump_grace_timer -= dt;
-        }
-
-        if on_ground == false {
-            fish.speed.y += consts::GRAVITY * get_frame_time();
-        }
-
         if fish.input.right {
             fish.fish_sprite.set_animation(1);
             fish.speed.x = consts::RUN_SPEED;
+            fish.facing = true;
         } else if fish.input.left {
             fish.fish_sprite.set_animation(1);
             fish.speed.x = -consts::RUN_SPEED;
+            fish.facing = false;
         } else {
             fish.fish_sprite.set_animation(0);
             fish.speed.x = 0.;
@@ -304,16 +386,6 @@ impl Player {
             }
         }
 
-        resources
-            .collision_world
-            .move_h(fish.collider, fish.speed.x * get_frame_time());
-        if !resources
-            .collision_world
-            .move_v(fish.collider, fish.speed.y * get_frame_time())
-        {
-            fish.speed.y = 0.0;
-        }
-
         if fish.input.fire {
             if fish.weapon.is_some() {
                 node.state_machine.set_state(Self::ST_SHOOT);
@@ -322,9 +394,12 @@ impl Player {
     }
 
     fn draw_hud(&self) {
+        if self.is_dead() {
+            return;
+        }
         if let Some(bullets) = self.fish.weapon {
-            let full_color = Color::new(0.6, 0.6, 0.9, 1.0);
-            let empty_color = Color::new(0.6, 0.6, 0.9, 0.8);
+            let full_color = Color::new(0.8, 0.9, 1.0, 1.0);
+            let empty_color = Color::new(0.8, 0.9, 1.0, 0.8);
             for i in 0..3 {
                 let x = self.fish.pos.x + 15.0 * i as f32;
 
@@ -353,6 +428,37 @@ impl scene::Node for Player {
         node.fish.input.left = is_key_down(KeyCode::Left) || is_key_down(KeyCode::A);
         node.fish.input.right = is_key_down(KeyCode::Right) || is_key_down(KeyCode::D);
 
-        StateMachine::update_detached(&mut node, |node| &mut node.state_machine)
+        {
+            let node = &mut *node;
+            let fish = &mut node.fish;
+
+            let mut resources = storage::get_mut::<Resources>().unwrap();
+            fish.pos = resources.collision_world.actor_pos(fish.collider);
+
+            fish.on_ground = resources
+                .collision_world
+                .collide_check(fish.collider, fish.pos + vec2(0., 1.));
+
+            if fish.on_ground == false {
+                fish.speed.y += consts::GRAVITY * get_frame_time();
+            }
+
+            if fish.on_ground {
+                node.jump_grace_timer = consts::JUMP_GRACE_TIME;
+            } else if node.jump_grace_timer > 0. {
+                node.jump_grace_timer -= get_frame_time();
+            }
+
+            resources
+                .collision_world
+                .move_h(fish.collider, fish.speed.x * get_frame_time());
+            if !resources
+                .collision_world
+                .move_v(fish.collider, fish.speed.y * get_frame_time())
+            {
+                fish.speed.y = 0.0;
+            }
+        }
+        StateMachine::update_detached(&mut node, |node| &mut node.state_machine);
     }
 }

@@ -54,6 +54,7 @@ impl scene::Node for GlobalEvents {
                 let y = rand::gen_range(0, h as i32 - 6) as f32;
 
                 let pos = vec2((x + 0.5) * tilewidth, (y - 0.5) * tileheight);
+
                 if resources
                     .collision_world
                     .collide_solids(pos, tilewidth as _, tileheight as _)
@@ -63,6 +64,7 @@ impl scene::Node for GlobalEvents {
                         tilewidth as _,
                         tileheight as i32 * 3,
                     )
+                    && Rect::new(5. * 32., 12. * 32., 8. * 32., 6. * 32.).contains(pos) == false
                 {
                     break pos;
                 }

@@ -1,7 +1,7 @@
 use macroquad::prelude::*;
 
 use macroquad_particles as particles;
-use macroquad_profiler as profiler;
+//use macroquad_profiler as profiler;
 use macroquad_tiled as tiled;
 
 use macroquad::{
@@ -40,6 +40,7 @@ pub mod consts {
     pub const BULLET_SPEED: f32 = 500.0;
     pub const JUMP_GRACE_TIME: f32 = 0.15;
     pub const NETWORK_FPS: f32 = 15.0;
+    pub const GUN_THROWBACK: f32 = 700.0;
 }
 
 struct Resources {
@@ -49,7 +50,13 @@ struct Resources {
     tiled_map: tiled::Map,
     collision_world: CollisionWorld,
     whale: Texture2D,
+    whale_green: Texture2D,
+    //whale_blue: Texture2D,
     gun: Texture2D,
+    background_01: Texture2D,
+    background_02: Texture2D,
+    background_03: Texture2D,
+    background_04: Texture2D,
 }
 
 pub const HIT_FX: &'static str = r#"{"local_coords":false,"emission_shape":{"Point":[]},"one_shot":true,"lifetime":0.2,"lifetime_randomness":0,"explosiveness":0.65,"amount":41,"shape":{"Circle":{"subdivisions":10}},"emitting":false,"initial_direction":{"x":0,"y":-1},"initial_direction_spread":6.2831855,"initial_velocity":73.9,"initial_velocity_randomness":0.2,"linear_accel":0,"size":5.6000004,"size_randomness":0.4,"blend_mode":{"Alpha":[]},"colors_curve":{"start":{"r":0.8200004,"g":1,"b":0.31818175,"a":1},"mid":{"r":0.71000004,"g":0.36210018,"b":0,"a":1},"end":{"r":0.02,"g":0,"b":0.000000007152557,"a":1}},"gravity":{"x":0,"y":0},"post_processing":{}}
@@ -92,8 +99,26 @@ impl Resources {
         let whale = load_texture("assets/Whale/Whale(76x66)(Orange).png").await;
         set_texture_filter(whale, FilterMode::Nearest);
 
+        let whale_green = load_texture("assets/Whale/Whale(76x66)(Green).png").await;
+        set_texture_filter(whale_green, FilterMode::Nearest);
+
+        // let whale_blue = load_texture("assets/Whale/Whale(76x66)(Blue).png").await;
+        // set_texture_filter(whale_blue, FilterMode::Nearest);
+
         let gun = load_texture("assets/Whale/Gun(92x32).png").await;
         set_texture_filter(gun, FilterMode::Nearest);
+
+        let background_01 = load_texture("assets/Background/01.png").await;
+        set_texture_filter(background_01, FilterMode::Nearest);
+
+        let background_02 = load_texture("assets/Background/02.png").await;
+        set_texture_filter(background_02, FilterMode::Nearest);
+
+        let background_03 = load_texture("assets/Background/03.png").await;
+        set_texture_filter(background_03, FilterMode::Nearest);
+
+        let background_04 = load_texture("assets/Background/04.png").await;
+        set_texture_filter(background_04, FilterMode::Nearest);
 
         Resources {
             hit_fxses,
@@ -102,7 +127,13 @@ impl Resources {
             tiled_map,
             collision_world,
             whale,
+            whale_green,
+            //whale_blue,
             gun,
+            background_01,
+            background_02,
+            background_03,
+            background_04,
         }
     }
 }
@@ -139,6 +170,12 @@ async fn main() {
 
     scene::add_node(LevelBackground::new());
     let player = scene::add_node(Player::new());
+    // dummy enemy for tests
+    let enemy = {
+        let mut remote = RemotePlayer::new("other".to_string());
+        remote.set_pos(vec2(270.0, 426.0));
+        scene::add_node(remote)
+    };
     scene::add_node(Bullets::new(player));
     let net_syncronizer = scene::add_node(NetSyncronizer::new(network_id));
     scene::add_node(GlobalEvents::new(player, net_syncronizer));
@@ -150,7 +187,10 @@ async fn main() {
 
         let pos = { scene::get_node::<Player>(player).unwrap().pos() };
 
-        set_camera(camera.update(pos));
+        let cam = camera.update(pos);
+        set_camera(cam);
+
+        storage::store(cam.target);
 
         scene::update();
 
@@ -166,9 +206,9 @@ async fn main() {
 
         set_default_camera();
 
-        profiler::profiler(profiler::ProfilerParams {
-            fps_counter_pos: vec2(50.0, 20.0),
-        });
+        // profiler::profiler(profiler::ProfilerParams {
+        //     fps_counter_pos: vec2(50.0, 20.0),
+        // });
 
         next_frame().await;
     }

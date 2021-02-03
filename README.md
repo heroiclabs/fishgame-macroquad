@@ -1,7 +1,7 @@
 "Fish Game" for Macroquad
 =====================
 
-![pvp](https://user-images.githubusercontent.com/910977/103933222-a2dd9f00-50e8-11eb-8dfa-890022129afc.gif)
+![fishgame](https://user-images.githubusercontent.com/910977/106779317-7dbb4e00-660c-11eb-84e6-83c9f5e73758.gif)
 
 
 **"Fish Game" for Macroquad** is an online multiplayer game, created as a

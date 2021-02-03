@@ -12,7 +12,7 @@ the [Macroquad](https://github.com/not-fl3/macroquad/) game engine.
 Playing the game online
 ----------------------------
 
-The latest web build for online play is available [here](http://173.0.157.169:8080/fishgame-nakama/index.html).
+The latest web build for online play is available [here](https://fedorgames.itch.io/fish-game?secret=UAVcggHn332a).
 
 Playing the game from source
 ----------------------------

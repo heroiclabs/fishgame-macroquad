@@ -1,56 +1,56 @@
 var match_id;
 var match;
-var socket;
+var nakama_socket;
 var received_buffer = [];
 var events = [];
 
-async function init_nakama() {
-    //var client = new nakamajs.Client("defaultkey", "173.0.157.169", 7350);
-    var client = new nakamajs.Client("defaultkey", "127.0.0.1", 7350);
-    client.ssl = false;
-
-    console.log(client);
+async function init_nakama(key, server, port, protocol) {
+    var client = new nakamajs.Client(key, server, port, protocol);
+    client.ssl = protocol == "https";
 
     var email = "super@heroes.com";
     var password = "batsignal";
     const session = await client.authenticateEmail(email, password);
     console.info(session);
 
-    const secure = false; // Enable if server is run with an SSL certificate
+    const secure = protocol == "https";
     const trace = false;
-    socket = client.createSocket(secure, trace);
-    socket.ondisconnect = (evt) => {
+    nakama_socket = client.createSocket(secure, trace);
+    nakama_socket.ondisconnect = (evt) => {
         console.info("Disconnected", evt);
     };
 
-    await socket.connect(session);
+    await nakama_socket.connect(session);
     // Socket is open.
-    console.log(socket);
+    console.log(nakama_socket);
 
-    socket.onchannelmessage = (message) => {
+    nakama_socket.onchannelmessage = (message) => {
         console.info("Message received from channel", message.channel_id);
         console.info("Received message", message);
     };
 
-    var response = await client.rpc(session, "public_match_id", {});
+    var response = await client.rpc(session, "rpc_macroquad_find_match", {
+        "kind": "public",
+        "engine": "macroquad",
+    });
     console.log(response);
-    match = await socket.joinMatch(response.payload.match_id);
+    match = await nakama_socket.joinMatch(response.payload.match_id);
     match_id = match.match_id;
     console.log("Joined match, id: %o", match_id);
 
+    if (match.presences != undefined) {
+        match.presences.forEach((presence) => {
+            if (presence.session_id !== match.self.session_id) {
+                events.push({
+                    event: 1,
+                    user_id: presence.session_id,
+                });
 
-    console.log(match.self.session_id);
-    match.presences.forEach((presence) => {
-        if (presence.session_id !== match.self.session_id) {
-            events.push({
-                event: 1,
-                user_id: presence.session_id,
-            });
+            }
+        });
+    }
 
-        }
-    });
-
-    socket.onmatchdata = (result) => {
+    nakama_socket.onmatchdata = (result) => {
         var content = result.data;
         var buffer = new Uint8Array(Object.values(content));
 
@@ -61,7 +61,7 @@ async function init_nakama() {
         });    
     };
 
-    socket.onmatchpresence = (matchpresence) => {
+    nakama_socket.onmatchpresence = (matchpresence) => {
         console.info("Received match presence update:", matchpresence);
 
         if (matchpresence.leaves != undefined) {
@@ -114,10 +114,19 @@ function nakama_send(opcode, data) {
     }
     var id = match_id;
     var array = consume_js_object(data);
-    socket.sendMatchState(id, opcode, array);
+    var a = nakama_socket.sendMatchState(id, opcode, array);
+}
+
+function nakama_connect(key, server, port, protocol) {
+    var key_string = consume_js_object(key);
+    var server_string = consume_js_object(server);
+    var protocol_string = consume_js_object(protocol);
+
+    init_nakama(key_string, server_string, port, protocol_string);
 }
 
 function register_plugin (importObject) {
+    importObject.env.nakama_connect = nakama_connect;
     importObject.env.nakama_is_connected = nakama_is_connected;
     importObject.env.nakama_self_id = nakama_self_id;
     importObject.env.nakama_send = nakama_send;
@@ -125,6 +134,6 @@ function register_plugin (importObject) {
     importObject.env.nakama_events = nakama_events;
 }
 
+
 miniquad_add_plugin({ register_plugin, version: "0.1.1", name: "quad_nakama" });
 
-init_nakama();

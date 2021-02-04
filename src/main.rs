@@ -14,6 +14,10 @@ use physics_platformer::World as CollisionWorld;
 
 mod nakama;
 
+mod credentials {
+    include!(concat!(env!("OUT_DIR"), "/nakama_credentials.rs"));
+}
+
 mod bullets;
 mod camera;
 mod global_events;
@@ -135,6 +139,13 @@ impl Resources {
 
 #[macroquad::main("Fishgame")]
 async fn main() {
+    nakama::connect(
+        credentials::NAKAMA_KEY,
+        credentials::NAKAMA_SERVER,
+        credentials::NAKAMA_PORT,
+        credentials::NAKAMA_PROTOCOL,
+    );
+
     #[cfg(target_arch = "wasm32")]
     {
         while nakama::connected() == false {

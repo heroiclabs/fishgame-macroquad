@@ -1,7 +1,7 @@
 use macroquad::prelude::*;
 
 use macroquad_particles as particles;
-//use macroquad_profiler as profiler;
+use macroquad_profiler as profiler;
 use macroquad_tiled as tiled;
 
 use macroquad::{
@@ -51,7 +51,6 @@ struct Resources {
     collision_world: CollisionWorld,
     whale: Texture2D,
     whale_green: Texture2D,
-    //whale_blue: Texture2D,
     gun: Texture2D,
     background_01: Texture2D,
     background_02: Texture2D,
@@ -102,9 +101,6 @@ impl Resources {
         let whale_green = load_texture("assets/Whale/Whale(76x66)(Green).png").await;
         set_texture_filter(whale_green, FilterMode::Nearest);
 
-        // let whale_blue = load_texture("assets/Whale/Whale(76x66)(Blue).png").await;
-        // set_texture_filter(whale_blue, FilterMode::Nearest);
-
         let gun = load_texture("assets/Whale/Gun(92x32).png").await;
         set_texture_filter(gun, FilterMode::Nearest);
 
@@ -128,7 +124,6 @@ impl Resources {
             collision_world,
             whale,
             whale_green,
-            //whale_blue,
             gun,
             background_01,
             background_02,
@@ -170,12 +165,7 @@ async fn main() {
 
     scene::add_node(LevelBackground::new());
     let player = scene::add_node(Player::new());
-    // dummy enemy for tests
-    let enemy = {
-        let mut remote = RemotePlayer::new("other".to_string());
-        remote.set_pos(vec2(270.0, 426.0));
-        scene::add_node(remote)
-    };
+
     scene::add_node(Bullets::new(player));
     let net_syncronizer = scene::add_node(NetSyncronizer::new(network_id));
     scene::add_node(GlobalEvents::new(player, net_syncronizer));
@@ -206,9 +196,9 @@ async fn main() {
 
         set_default_camera();
 
-        // profiler::profiler(profiler::ProfilerParams {
-        //     fps_counter_pos: vec2(50.0, 20.0),
-        // });
+        profiler::profiler(profiler::ProfilerParams {
+            fps_counter_pos: vec2(50.0, 20.0),
+        });
 
         next_frame().await;
     }

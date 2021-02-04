@@ -1,6 +1,7 @@
 use macroquad::{
     experimental::{
         collections::storage,
+        coroutines::{start_coroutine, wait_seconds},
         scene::{self, Handle, RefMut},
     },
     prelude::*,
@@ -92,12 +93,9 @@ mod message {
     }
 
     #[derive(Debug, Clone, SerBin, DeBin, PartialEq)]
-    pub struct PickUpWeapon {
-        pub item_id: u32,
-        pub player_id: u8,
-    }
-    impl PickUpWeapon {
-        pub const OPCODE: i32 = 6;
+    pub struct Idle;
+    impl Idle {
+        pub const OPCODE: i32 = 7;
     }
 }
 
@@ -160,24 +158,18 @@ impl NetSyncronizer {
         );
     }
 
-    pub fn pick_up_item(&mut self, item_id: usize, player_id: Option<&str>) {
-        if let Some(network_id) = self
-            .network_ids
-            .iter()
-            .position(|id| id == player_id.unwrap_or(&self.network_id))
-        {
-            nakama::send_bin(
-                message::PickUpWeapon::OPCODE,
-                &message::PickUpWeapon {
-                    item_id: item_id as _,
-                    player_id: network_id as _,
-                },
-            )
-        }
-    }
 }
 
 impl scene::Node for NetSyncronizer {
+    fn ready(_: RefMut<Self>) {
+        let idle = async move {
+            loop {
+                nakama::send_bin(message::Idle::OPCODE, &message::Idle);
+                wait_seconds(1.0).await;
+            }
+        };
+        start_coroutine(idle);
+    }
     fn draw(node: RefMut<Self>) {
         if node.is_host() {
             draw_text_ex(

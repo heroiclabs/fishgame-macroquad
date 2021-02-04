@@ -46,6 +46,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2e8c087f005730276d1096a652e92a8bacee2e2472bcc9715a74d2bec38b5820"
 
 [[package]]
+name = "bytemuck"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a4bad0c5981acc24bc09e532f35160f952e35422603f0563cd7a73c2c2e65a0"
+
+[[package]]
 name = "byteorder"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -64,6 +70,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "color_quant"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
+
+[[package]]
 name = "crc32fast"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -74,9 +86,9 @@ dependencies = [
 
 [[package]]
 name = "deflate"
-version = "0.7.20"
+version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "707b6a7b384888a70c8d2e8650b3e60170dfc6a67bb4aa67b6dfca57af4bedb4"
+checksum = "73770f8e1fe7d64df17ca66ad28994a0a623ea497fa69486e14984e715c5d174"
 dependencies = [
  "adler32",
  "byteorder",
@@ -127,24 +139,17 @@ dependencies = [
 
 [[package]]
 name = "image"
-version = "0.22.5"
+version = "0.23.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08ed2ada878397b045454ac7cfb011d73132c59f31a955d230bd1f1c2e68eb4a"
+checksum = "7ce04077ead78e39ae8610ad26216aed811996b043d47beed5090db674f9e9b5"
 dependencies = [
+ "bytemuck",
  "byteorder",
+ "color_quant",
  "num-iter",
  "num-rational",
  "num-traits",
  "png",
-]
-
-[[package]]
-name = "inflate"
-version = "0.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cdb29978cc5797bd8dcc8e5bf7de604891df2a8dc576973d71a281e916db2ff"
-dependencies = [
- "adler32",
 ]
 
 [[package]]
@@ -156,6 +161,7 @@ checksum = "89203f3fba0a3795506acaad8ebce3c80c0af93f994d5a1d7a0b1eeb23271929"
 [[package]]
 name = "macroquad"
 version = "0.3.0-alpha.14"
+source = "git+https://github.com/not-fl3/macroquad.git#7530cac6931b18556e4b704c1f7283727c802748"
 dependencies = [
  "bumpalo",
  "fontdue",
@@ -169,6 +175,7 @@ dependencies = [
 [[package]]
 name = "macroquad-particles"
 version = "0.1.0"
+source = "git+https://github.com/not-fl3/macroquad.git#7530cac6931b18556e4b704c1f7283727c802748"
 dependencies = [
  "macroquad",
  "nanoserde",
@@ -177,6 +184,7 @@ dependencies = [
 [[package]]
 name = "macroquad-profiler"
 version = "0.1.0"
+source = "git+https://github.com/not-fl3/macroquad.git#7530cac6931b18556e4b704c1f7283727c802748"
 dependencies = [
  "macroquad",
  "megaui-macroquad",
@@ -185,7 +193,7 @@ dependencies = [
 [[package]]
 name = "macroquad-tiled"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#1ce46bacb4d91c42e979a359b050d4d8a8d88dd4"
+source = "git+https://github.com/not-fl3/macroquad.git#7530cac6931b18556e4b704c1f7283727c802748"
 dependencies = [
  "macroquad",
  "nanoserde",
@@ -194,10 +202,13 @@ dependencies = [
 [[package]]
 name = "macroquad_macro"
 version = "0.1.2"
+source = "git+https://github.com/not-fl3/macroquad.git#7530cac6931b18556e4b704c1f7283727c802748"
 
 [[package]]
 name = "megaui"
 version = "0.2.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2a64cb54511efc5e729be417569970153b5eee51ee4f060add0e652f4f50e22"
 dependencies = [
  "miniquad_text_rusttype",
 ]
@@ -234,6 +245,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3223bd0dbc43a241228209464f995a7a6a86d64865459a8f1b8870890c6caea7"
 dependencies = [
  "rusttype 0.7.9",
+]
+
+[[package]]
+name = "miniz_oxide"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "791daaae1ed6889560f8c4359194f56648355540573244a5448a83ba1ecc7435"
+dependencies = [
+ "adler32",
 ]
 
 [[package]]
@@ -274,9 +294,9 @@ dependencies = [
 
 [[package]]
 name = "num-rational"
-version = "0.2.4"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c000134b5dbf44adc5cb772486d335293351644b801551abe8f75c84cfa4aef"
+checksum = "12ac428b1cb17fce6f731001d307d351ec70a6d202fc2e60f7d4c5e42d8f4f07"
 dependencies = [
  "autocfg",
  "num-integer",
@@ -304,20 +324,21 @@ dependencies = [
 [[package]]
 name = "physics-platformer"
 version = "0.1.0"
+source = "git+https://github.com/not-fl3/macroquad.git#7530cac6931b18556e4b704c1f7283727c802748"
 dependencies = [
  "macroquad",
 ]
 
 [[package]]
 name = "png"
-version = "0.15.3"
+version = "0.16.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef859a23054bbfee7811284275ae522f0434a3c8e7f4b74bd4a35ae7e1c4a283"
+checksum = "3c3287920cb847dee3de33d301c463fba14dda99db24214ddf93f83d3021f4c6"
 dependencies = [
  "bitflags",
  "crc32fast",
  "deflate",
- "inflate",
+ "miniz_oxide",
 ]
 
 [[package]]
@@ -385,6 +406,8 @@ dependencies = [
 [[package]]
 name = "sapp-jsutils"
 version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95b6538a351f8e2066fb98c07e24ac616896d2ffb49b4843cceb3839e7dc0d65"
 
 [[package]]
 name = "sapp-linux"

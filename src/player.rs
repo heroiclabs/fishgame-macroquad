@@ -10,7 +10,7 @@ use macroquad::{
 };
 use physics_platformer::Actor;
 
-use crate::{consts, Resources};
+use crate::{consts, Resources, Pickup};
 
 #[derive(Default, Debug, Clone)]
 pub struct Input {
@@ -40,7 +40,15 @@ impl Fish {
         let mut resources = storage::get_mut::<Resources>().unwrap();
 
         let fish_sprite = AnimatedSprite::new(
-            (resources.whale_green, 76, 66),
+            (
+                if color == 0 {
+                    resources.whale
+                } else {
+                    resources.whale_green
+                },
+                76,
+                66,
+            ),
             &[
                 Animation {
                     name: "idle".to_string(),
@@ -291,6 +299,7 @@ impl Player {
             resources
                 .collision_world
                 .set_actor_position(this.fish.collider, this.fish.pos);
+            this.fish.disarm();
             this.state_machine.set_state(Self::ST_NORMAL);
         };
 
@@ -460,5 +469,16 @@ impl scene::Node for Player {
             }
         }
         StateMachine::update_detached(&mut node, |node| &mut node.state_machine);
+
+        for pickup in scene::find_nodes_by_type::<Pickup>() {
+            let collide = |player: Vec2, pickup: Vec2| {
+                (player + vec2(16., 32.)).distance(pickup + vec2(16., 16.)) < 90.
+            };
+
+            if collide(node.pos(), pickup.pos) {
+                pickup.delete();
+                node.pick_weapon();
+            }
+        }
     }
 }

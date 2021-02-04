@@ -322,17 +322,7 @@ impl scene::Node for NetSyncronizer {
                             }
                         }
                     }
-                    message::PickUpWeapon::OPCODE => {
-                        let message::PickUpWeapon { player_id, .. } =
-                            DeBin::deserialize_bin(&msg.data).unwrap();
-                        let id = node.network_ids.iter().nth(player_id as _);
-
-                        if id == Some(&node.network_id) {
-                            let mut player = scene::find_node_by_type::<Player>().unwrap();
-                            player.pick_weapon();
-                        }
-                    }
-
+                    message::Idle::OPCODE => {}
                     opcode => {
                         warn!("Unknown opcode: {}", opcode);
                     }

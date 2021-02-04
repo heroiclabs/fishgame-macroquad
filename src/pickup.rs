@@ -41,7 +41,7 @@ impl scene::Node for Pickup {
         });
 
         start_coroutine(async move {
-            wait_seconds(5.).await;
+            wait_seconds(10.).await;
 
             let n = 10;
             for _ in 0..n {

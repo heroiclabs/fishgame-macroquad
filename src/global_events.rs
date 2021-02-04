@@ -10,7 +10,7 @@ use crate::{NetSyncronizer, Pickup, Player, RemotePlayer, Resources};
 
 pub struct GlobalEvents {
     last_spawn_time: f64,
-    player: Handle<Player>,
+    _player: Handle<Player>,
     spawned_items: Vec<(usize, Handle<Pickup>)>,
 
     uid: usize,
@@ -22,7 +22,7 @@ impl GlobalEvents {
 
     pub fn new(player: Handle<Player>, net_syncronizer: Handle<NetSyncronizer>) -> GlobalEvents {
         GlobalEvents {
-            player,
+            _player: player,
             net_syncronizer,
             last_spawn_time: 0.0,
             uid: 0,
@@ -80,7 +80,6 @@ impl scene::Node for GlobalEvents {
             node.uid += 1;
         }
 
-        let mut player = scene::get_node(node.player).unwrap();
         let mut others = scene::find_nodes_by_type::<RemotePlayer>();
 
         node.spawned_items.retain(|(id, item_handle)| {
@@ -93,25 +92,14 @@ impl scene::Node for GlobalEvents {
             let item = item.unwrap();
 
             let collide = |player: Vec2, pickup: Vec2| {
-                (player + vec2(16., 32.)).distance(pickup + vec2(16., 16.)) < 60.
+                (player + vec2(16., 32.)).distance(pickup + vec2(16., 16.)) < 90.
             };
-
-            if collide(player.pos(), item.pos) {
-                player.pick_weapon();
-                item.delete();
-
-                net_syncronizer.delete_item(*id);
-                net_syncronizer.pick_up_item(*id, None);
-                return false;
-            }
 
             let other = others.find(|other| collide(other.pos(), item.pos));
 
-            if let Some(other) = other {
+            if other.is_some() {
                 item.delete();
-
                 net_syncronizer.delete_item(*id);
-                net_syncronizer.pick_up_item(*id, Some(&other.network_id));
                 return false;
             }
 

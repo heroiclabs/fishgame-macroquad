@@ -54,7 +54,6 @@ struct Resources {
     tiled_map: tiled::Map,
     collision_world: CollisionWorld,
     whale: Texture2D,
-    whale_green: Texture2D,
     gun: Texture2D,
     background_01: Texture2D,
     background_02: Texture2D,
@@ -102,9 +101,6 @@ impl Resources {
         let whale = load_texture("assets/Whale/Whale(76x66)(Orange).png").await;
         set_texture_filter(whale, FilterMode::Nearest);
 
-        let whale_green = load_texture("assets/Whale/Whale(76x66)(Green).png").await;
-        set_texture_filter(whale_green, FilterMode::Nearest);
-
         let gun = load_texture("assets/Whale/Gun(92x32).png").await;
         set_texture_filter(gun, FilterMode::Nearest);
 
@@ -127,7 +123,6 @@ impl Resources {
             tiled_map,
             collision_world,
             whale,
-            whale_green,
             gun,
             background_01,
             background_02,

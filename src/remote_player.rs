@@ -22,7 +22,7 @@ impl RemotePlayer {
         let pos = vec2(100., 105.);
 
         RemotePlayer {
-            fish: Fish::new(1, pos),
+            fish: Fish::new(pos),
             network_id,
             pos_delta: vec2(0.0, 0.0),
             last_move_time: 0.0,

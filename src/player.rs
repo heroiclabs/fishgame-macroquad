@@ -1,4 +1,5 @@
 use macroquad::{
+    color,
     experimental::{
         animation::{AnimatedSprite, Animation},
         collections::storage,
@@ -10,7 +11,7 @@ use macroquad::{
 };
 use physics_platformer::Actor;
 
-use crate::{consts, Resources, Pickup};
+use crate::{consts, Pickup, Resources};
 
 #[derive(Default, Debug, Clone)]
 pub struct Input {
@@ -36,19 +37,12 @@ pub struct Fish {
 }
 
 impl Fish {
-    pub fn new(color: u8, spawner_pos: Vec2) -> Fish {
+    pub fn new(spawner_pos: Vec2) -> Fish {
         let mut resources = storage::get_mut::<Resources>().unwrap();
 
         let fish_sprite = AnimatedSprite::new(
-            (
-                if color == 0 {
-                    resources.whale
-                } else {
-                    resources.whale_green
-                },
-                76,
-                66,
-            ),
+            76,
+            66,
             &[
                 Animation {
                     name: "idle".to_string(),
@@ -78,7 +72,8 @@ impl Fish {
             true,
         );
         let gun_sprite = AnimatedSprite::new(
-            (resources.gun, 92, 32),
+            92,
+            32,
             &[
                 Animation {
                     name: "idle".to_string(),
@@ -96,7 +91,8 @@ impl Fish {
             false,
         );
         let gun_fx_sprite = AnimatedSprite::new(
-            (resources.gun, 92, 32),
+            92,
+            32,
             &[Animation {
                 name: "shoot".to_string(),
                 row: 2,
@@ -158,8 +154,22 @@ impl Fish {
     }
 
     pub fn draw(&mut self) {
-        self.fish_sprite
-            .draw(self.pos - vec2(25., 10.), self.facing, false);
+        let resources = storage::get::<Resources>().unwrap();
+
+        self.fish_sprite.update();
+
+        draw_texture_ex(
+            resources.whale,
+            self.pos.x - 25.,
+            self.pos.y - 10.,
+            color::WHITE,
+            DrawTextureParams {
+                source: Some(self.fish_sprite.frame().source_rect),
+                dest_size: Some(self.fish_sprite.frame().dest_size),
+                flip_x: !self.facing,
+                ..Default::default()
+            },
+        );
 
         if self.dead == false && self.weapon.is_some() {
             let gun_mount_pos = if self.facing {
@@ -167,11 +177,34 @@ impl Fish {
             } else {
                 vec2(-60., 16.)
             };
-            self.gun_sprite
-                .draw(self.pos + gun_mount_pos, self.facing, false);
+            self.gun_sprite.update();
+            draw_texture_ex(
+                resources.gun,
+                self.pos.x + gun_mount_pos.x,
+                self.pos.y + gun_mount_pos.y,
+                color::WHITE,
+                DrawTextureParams {
+                    source: Some(self.gun_sprite.frame().source_rect),
+                    dest_size: Some(self.gun_sprite.frame().dest_size),
+                    flip_x: !self.facing,
+                    ..Default::default()
+                },
+            );
+
             if self.gun_fx {
-                self.gun_fx_sprite
-                    .draw(self.pos + gun_mount_pos, self.facing, false);
+                self.gun_fx_sprite.update();
+                draw_texture_ex(
+                    resources.gun,
+                    self.pos.x + gun_mount_pos.x,
+                    self.pos.y + gun_mount_pos.y,
+                    color::WHITE,
+                    DrawTextureParams {
+                        source: Some(self.gun_fx_sprite.frame().source_rect),
+                        dest_size: Some(self.gun_fx_sprite.frame().dest_size),
+                        flip_x: !self.facing,
+                        ..Default::default()
+                    },
+                );
             }
         }
     }
@@ -213,7 +246,7 @@ impl Player {
         );
 
         Player {
-            fish: Fish::new(0, spawner_pos),
+            fish: Fish::new(spawner_pos),
             jump_grace_timer: 0.,
             state_machine,
         }

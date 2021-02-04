@@ -161,7 +161,7 @@ checksum = "89203f3fba0a3795506acaad8ebce3c80c0af93f994d5a1d7a0b1eeb23271929"
 [[package]]
 name = "macroquad"
 version = "0.3.0-alpha.14"
-source = "git+https://github.com/not-fl3/macroquad.git#7530cac6931b18556e4b704c1f7283727c802748"
+source = "git+https://github.com/not-fl3/macroquad.git#1bffbf618d8b16c4cbb9c4548d8518ff8e035fe7"
 dependencies = [
  "bumpalo",
  "fontdue",
@@ -175,7 +175,7 @@ dependencies = [
 [[package]]
 name = "macroquad-particles"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#7530cac6931b18556e4b704c1f7283727c802748"
+source = "git+https://github.com/not-fl3/macroquad.git#1bffbf618d8b16c4cbb9c4548d8518ff8e035fe7"
 dependencies = [
  "macroquad",
  "nanoserde",
@@ -184,7 +184,7 @@ dependencies = [
 [[package]]
 name = "macroquad-profiler"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#7530cac6931b18556e4b704c1f7283727c802748"
+source = "git+https://github.com/not-fl3/macroquad.git#1bffbf618d8b16c4cbb9c4548d8518ff8e035fe7"
 dependencies = [
  "macroquad",
  "megaui-macroquad",
@@ -193,7 +193,7 @@ dependencies = [
 [[package]]
 name = "macroquad-tiled"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#7530cac6931b18556e4b704c1f7283727c802748"
+source = "git+https://github.com/not-fl3/macroquad.git#1bffbf618d8b16c4cbb9c4548d8518ff8e035fe7"
 dependencies = [
  "macroquad",
  "nanoserde",
@@ -202,7 +202,7 @@ dependencies = [
 [[package]]
 name = "macroquad_macro"
 version = "0.1.2"
-source = "git+https://github.com/not-fl3/macroquad.git#7530cac6931b18556e4b704c1f7283727c802748"
+source = "git+https://github.com/not-fl3/macroquad.git#1bffbf618d8b16c4cbb9c4548d8518ff8e035fe7"
 
 [[package]]
 name = "megaui"
@@ -324,7 +324,7 @@ dependencies = [
 [[package]]
 name = "physics-platformer"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#7530cac6931b18556e4b704c1f7283727c802748"
+source = "git+https://github.com/not-fl3/macroquad.git#1bffbf618d8b16c4cbb9c4548d8518ff8e035fe7"
 dependencies = [
  "macroquad",
 ]

@@ -8,6 +8,7 @@ use macroquad::{
         state_machine::{State, StateMachine},
     },
     prelude::*,
+    ui::{self, hash},
 };
 use physics_platformer::Actor;
 
@@ -213,6 +214,9 @@ impl Fish {
 pub struct Player {
     pub fish: Fish,
 
+    deathmatch: bool,
+    win: bool,
+    pub want_quit: bool,
     jump_grace_timer: f32,
     state_machine: StateMachine<RefMut<Player>>,
 }
@@ -221,8 +225,9 @@ impl Player {
     const ST_NORMAL: usize = 0;
     const ST_DEATH: usize = 1;
     const ST_SHOOT: usize = 2;
+    const ST_AFTERMATCH: usize = 3;
 
-    pub fn new() -> Player {
+    pub fn new(deathmatch: bool) -> Player {
         let spawner_pos = {
             let resources = storage::get_mut::<Resources>().unwrap();
             let objects = &resources.tiled_map.layers["logic"].objects;
@@ -244,9 +249,16 @@ impl Player {
                 .update(Self::update_shoot)
                 .coroutine(Self::shoot_coroutine),
         );
+        state_machine.add_state(
+            Self::ST_AFTERMATCH,
+            State::new().update(Self::update_aftermatch),
+        );
 
         Player {
             fish: Fish::new(spawner_pos),
+            deathmatch,
+            win: false,
+            want_quit: false,
             jump_grace_timer: 0.,
             state_machine,
         }
@@ -265,7 +277,7 @@ impl Player {
     }
 
     pub fn is_dead(&self) -> bool {
-        self.state_machine.state() == Self::ST_DEATH
+        self.fish.dead
     }
 
     pub fn kill(&mut self, direction: bool) {
@@ -328,12 +340,16 @@ impl Player {
                 vec2(world_x, world_y)
             };
             this.fish.fish_sprite.playing = true;
-            this.fish.dead = false;
-            resources
-                .collision_world
-                .set_actor_position(this.fish.collider, this.fish.pos);
             this.fish.disarm();
-            this.state_machine.set_state(Self::ST_NORMAL);
+
+            // in deathmatch we can just get back to normal after death
+            if this.deathmatch {
+                this.state_machine.set_state(Self::ST_NORMAL);
+                this.fish.dead = false;
+                resources
+                    .collision_world
+                    .set_actor_position(this.fish.collider, this.fish.pos);
+            }
         };
 
         start_coroutine(coroutine)
@@ -394,6 +410,34 @@ impl Player {
 
     fn update_shoot(node: &mut RefMut<Player>, _dt: f32) {
         node.fish.speed.x *= 0.9;
+    }
+
+    fn update_aftermatch(node: &mut RefMut<Player>, _dt: f32) {
+        let resources = storage::get::<crate::gui::GuiResources>().unwrap();
+
+        node.fish.speed.x = 0.0;
+
+        ui::root_ui().push_skin(&resources.login_skin);
+        ui::root_ui().window(
+            hash!(),
+            Vec2::new(
+                screen_width() / 2. - 500. / 2.,
+                screen_height() / 2. - 200. / 2.,
+            ),
+            Vec2::new(500., 200.),
+            |ui| {
+                if node.win {
+                    ui.label(vec2(190., 30.), "You win!");
+                    crate::nakama::add_leaderboard_win();
+                } else {
+                    ui.label(vec2(190., 30.), "You lost!");
+                }
+                if ui.button(vec2(130., 60.), "Return to lobby") {
+                    node.want_quit = true;
+                }
+            },
+        );
+        ui::root_ui().pop_skin();
     }
 
     fn update_normal(node: &mut RefMut<Player>, _dt: f32) {
@@ -463,12 +507,35 @@ impl scene::Node for Player {
     }
 
     fn update(mut node: RefMut<Self>) {
-        node.fish.input.jump = is_key_pressed(KeyCode::Space)
-            || is_key_pressed(KeyCode::W)
-            || is_key_pressed(KeyCode::Up);
-        node.fish.input.fire = is_key_pressed(KeyCode::LeftControl) || is_key_pressed(KeyCode::F);
-        node.fish.input.left = is_key_down(KeyCode::Left) || is_key_down(KeyCode::A);
-        node.fish.input.right = is_key_down(KeyCode::Right) || is_key_down(KeyCode::D);
+        let game_started = scene::find_node_by_type::<crate::NetSyncronizer>()
+            .unwrap()
+            .game_started;
+
+        if game_started {
+            node.fish.input.jump = is_key_pressed(KeyCode::Space)
+                || is_key_pressed(KeyCode::W)
+                || is_key_pressed(KeyCode::Up);
+            node.fish.input.fire =
+                is_key_pressed(KeyCode::LeftControl) || is_key_pressed(KeyCode::F);
+            node.fish.input.left = is_key_down(KeyCode::Left) || is_key_down(KeyCode::A);
+            node.fish.input.right = is_key_down(KeyCode::Right) || is_key_down(KeyCode::D);
+        }
+
+        // win condition
+        if node.deathmatch == false && game_started {
+            let others = scene::find_nodes_by_type::<crate::RemotePlayer>();
+            let alive_enemies = others.filter(|player| player.dead == false).count();
+
+            if node.fish.dead {
+                node.win = false;
+                node.state_machine.set_state(Self::ST_AFTERMATCH);
+            }
+
+            if alive_enemies == 0 {
+                node.win = true;
+                node.state_machine.set_state(Self::ST_AFTERMATCH);
+            }
+        }
 
         {
             let node = &mut *node;

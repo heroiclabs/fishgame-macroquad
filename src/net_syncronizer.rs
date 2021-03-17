@@ -5,21 +5,20 @@ use macroquad::{
         scene::{self, Handle, RefMut},
     },
     prelude::*,
+    ui::{self, hash, root_ui, widgets},
 };
 use nanoserde::DeBin;
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::{consts, nakama, Pickup, Player, RemotePlayer, Resources};
+use crate::{consts, nakama, GameType, Pickup, Player, RemotePlayer, Resources};
 
 struct NetworkCache {
-    sent_death_state: bool,
     sent_position: [u8; 3],
     last_send_time: f64,
 }
 
 impl NetworkCache {
     fn flush(&mut self) {
-        self.sent_death_state = false;
         self.sent_position = [0; 3];
         self.last_send_time = 0.0;
     }
@@ -69,12 +68,6 @@ mod message {
     }
 
     #[derive(Debug, Clone, SerBin, DeBin, PartialEq)]
-    pub struct Died;
-    impl Died {
-        pub const OPCODE: i32 = 3;
-    }
-
-    #[derive(Debug, Clone, SerBin, DeBin, PartialEq)]
     pub struct SpawnItem {
         pub id: u32,
         pub x: u16,
@@ -93,9 +86,21 @@ mod message {
     }
 
     #[derive(Debug, Clone, SerBin, DeBin, PartialEq)]
+    pub struct Ready;
+    impl Ready {
+        pub const OPCODE: i32 = 6;
+    }
+
+    #[derive(Debug, Clone, SerBin, DeBin, PartialEq)]
     pub struct Idle;
     impl Idle {
         pub const OPCODE: i32 = 7;
+    }
+
+    #[derive(Debug, Clone, SerBin, DeBin, PartialEq)]
+    pub struct StartGame;
+    impl StartGame {
+        pub const OPCODE: i32 = 8;
     }
 }
 
@@ -106,15 +111,18 @@ pub struct NetSyncronizer {
     pickups: BTreeMap<usize, Handle<Pickup>>,
     network_ids: BTreeSet<String>,
     shoot_pending: bool,
+    ready: bool,
+    pub game_type: GameType,
+    pub game_started: bool,
 }
 
 impl NetSyncronizer {
-    pub fn new(network_id: String) -> NetSyncronizer {
+    pub(crate) fn new(network_id: String, game_type: GameType) -> NetSyncronizer {
         NetSyncronizer {
+            game_type,
             network_cache: NetworkCache {
                 sent_position: [0; 3],
                 last_send_time: 0.0,
-                sent_death_state: false,
             },
             others: BTreeMap::new(),
             network_ids: {
@@ -125,6 +133,8 @@ impl NetSyncronizer {
             network_id,
             pickups: BTreeMap::new(),
             shoot_pending: false,
+            ready: false,
+            game_started: game_type == GameType::Deathmatch,
         }
     }
 
@@ -140,6 +150,7 @@ impl NetSyncronizer {
     pub fn shoot(&mut self) {
         self.shoot_pending = true;
     }
+
     pub fn spawn_item(&mut self, id: usize, pos: Vec2) {
         nakama::send_bin(
             message::SpawnItem::OPCODE,
@@ -157,7 +168,6 @@ impl NetSyncronizer {
             &message::DeleteItem { id: id as _ },
         );
     }
-
 }
 
 impl scene::Node for NetSyncronizer {
@@ -170,18 +180,74 @@ impl scene::Node for NetSyncronizer {
         };
         start_coroutine(idle);
     }
-    fn draw(node: RefMut<Self>) {
+    fn draw(mut node: RefMut<Self>) {
         if node.is_host() {
-            draw_text_ex(
-                "You are the host",
-                0.0,
-                3.0,
-                TextParams {
-                    font_size: 20,
-                    font_scale: 0.25,
-                    ..Default::default()
+            root_ui().label(None, "You are the host");
+        }
+
+        if node.game_type != GameType::Deathmatch && node.game_started == false {
+            let resources = storage::get::<crate::gui::GuiResources>().unwrap();
+
+            ui::root_ui().push_skin(&resources.login_skin);
+            ui::root_ui().window(
+                hash!(),
+                Vec2::new(
+                    screen_width() / 2. - 500. / 2.,
+                    screen_height() / 2. - 200. / 2.,
+                ),
+                Vec2::new(500., 200.),
+                |ui| {
+                    if let GameType::LastFishStanding { private: true } = node.game_type {
+                        let mut match_id = nakama::match_id().unwrap_or("".to_string());
+
+                        widgets::InputText::new(hash!())
+                            .ratio(3. / 4.)
+                            .label("Match ID")
+                            .ui(ui, &mut match_id);
+                    }
+                    for player in node.others.values() {
+                        let player = scene::get_node(*player).unwrap();
+                        ui.label(None, &format!("{}: ", player.username));
+                        ui.same_line(300.0);
+                        if player.ready {
+                            ui.label(None, "Ready");
+                        } else {
+                            ui.label(None, "Not ready");
+                        }
+                    }
+
+                    let everyone_ready = {
+                        let others = scene::find_nodes_by_type::<RemotePlayer>();
+                        let (ready, notready) = others.fold((0, 0), |(ready, notready), player| {
+                            if player.ready {
+                                (ready + 1, notready)
+                            } else {
+                                (ready, notready + 1)
+                            }
+                        });
+
+                        ready != 0 && notready == 0
+                    } && node.ready;
+
+                    if node.ready == false && ui.button(vec2(180.0, 100.0), "Ready") {
+                        node.ready = true;
+                        nakama::send_bin(message::Ready::OPCODE, &message::Ready);
+                    }
+
+                    if node.is_host() && everyone_ready {
+                        if ui.button(vec2(150.0, 100.0), "Start match!") {
+                            node.game_started = true;
+                            nakama::send_bin(message::StartGame::OPCODE, &message::StartGame);
+                        }
+                    } else if node.ready {
+                        ui.label(
+                            vec2(20.0, 110.0),
+                            "You are ready, waiting for other players!",
+                        );
+                    }
                 },
             );
+            ui::root_ui().pop_skin();
         }
     }
 
@@ -205,17 +271,13 @@ impl scene::Node for NetSyncronizer {
                 state.set_shooting(shooting);
                 state.set_weapon(player.armed());
                 state.set_dead(player.is_dead());
+                if player.is_dead() {
+                    warn!("it was dead yea");
+                }
 
                 if node.network_cache.sent_position != state.0 {
                     node.network_cache.sent_position = state.0;
                     nakama::send_bin(message::Move::OPCODE, &message::Move(state.0));
-                }
-
-                if node.network_cache.sent_death_state != player.is_dead() {
-                    if player.is_dead() {
-                        nakama::send_bin(message::Died::OPCODE, &message::Died);
-                    }
-                    node.network_cache.sent_death_state = player.is_dead();
                 }
             }
         }
@@ -235,12 +297,15 @@ impl scene::Node for NetSyncronizer {
                     }
                     node.network_ids.remove(&leaver);
                 }
-                nakama::Event::Join(joined) => {
+                nakama::Event::Join {
+                    network_id: joined,
+                    username,
+                } => {
                     node.network_cache.flush();
                     node.network_ids.insert(joined.clone());
                     if node.others.contains_key(&joined) == false {
                         node.others
-                            .insert(joined.clone(), scene::add_node(RemotePlayer::new(joined)));
+                            .insert(joined, scene::add_node(RemotePlayer::new(username)));
                     }
                 }
             }
@@ -251,7 +316,7 @@ impl scene::Node for NetSyncronizer {
                 warn!("id: {}", id);
             }
             for player in scene::find_nodes_by_type::<RemotePlayer>() {
-                warn!("players: {} {:?}", &player.network_id, player.pos());
+                warn!("players: {} {:?}", &player.username, player.pos());
             }
         }
 
@@ -267,6 +332,14 @@ impl scene::Node for NetSyncronizer {
 
                         other.set_pos(pos);
                         other.set_facing(state.facing());
+
+                        if state.dead() && other.dead != state.dead() {
+                            warn!("state.dead() && other.dead != state.dead()");
+                            let mut resources = storage::get_mut::<Resources>().unwrap();
+                            resources
+                                .explosion_fxses
+                                .spawn(other.pos() + vec2(15., 33.));
+                        }
                         other.set_dead(state.dead());
 
                         if other.armed() && state.weapon() == false {
@@ -282,16 +355,15 @@ impl scene::Node for NetSyncronizer {
                             bullets.spawn_bullet(pos, state.facing());
                         }
                     }
+                    message::Ready::OPCODE => {
+                        other.ready = true;
+                    }
+                    message::StartGame::OPCODE => {
+                        node.game_started = true;
+                    }
                     message::SelfDamage::OPCODE => {
                         let message::SelfDamage(_health) =
                             DeBin::deserialize_bin(&msg.data).unwrap();
-                    }
-                    message::Died::OPCODE => {
-                        let mut resources = storage::get_mut::<Resources>().unwrap();
-
-                        resources
-                            .explosion_fxses
-                            .spawn(other.pos() + vec2(15., 33.));
                     }
                     message::SpawnItem::OPCODE => {
                         let message::SpawnItem { id, x, y } =

@@ -9,23 +9,25 @@ use macroquad::{
 use crate::{player::Fish, Resources};
 
 pub struct RemotePlayer {
-    pub network_id: String,
+    pub username: String,
     fish: Fish,
 
-    dead: bool,
+    pub dead: bool,
+    pub ready: bool,
     pos_delta: Vec2,
     last_move_time: f64,
 }
 
 impl RemotePlayer {
-    pub fn new(network_id: String) -> RemotePlayer {
+    pub fn new(username: String) -> RemotePlayer {
         let pos = vec2(100., 105.);
 
         RemotePlayer {
             fish: Fish::new(pos),
-            network_id,
+            username,
             pos_delta: vec2(0.0, 0.0),
             last_move_time: 0.0,
+            ready: false,
             dead: false,
         }
     }
@@ -53,6 +55,7 @@ impl RemotePlayer {
     }
 
     pub fn set_dead(&mut self, dead: bool) {
+        warn!("set_dead: dead");
         self.dead = dead;
     }
 
@@ -64,7 +67,7 @@ impl RemotePlayer {
 impl scene::Node for RemotePlayer {
     fn draw(mut node: RefMut<Self>) {
         draw_text_ex(
-            &node.network_id[0..5],
+            &node.username,
             node.fish.pos().x - 1.,
             node.fish.pos().y - 1.,
             TextParams {

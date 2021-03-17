@@ -10,7 +10,7 @@ macroquad = { git = "https://github.com/not-fl3/macroquad.git" }
 physics-platformer = { git = "https://github.com/not-fl3/macroquad.git" }
 macroquad-tiled = { git = "https://github.com/not-fl3/macroquad.git" }
 macroquad-particles = { git = "https://github.com/not-fl3/macroquad.git", features = ["nanoserde"] }
-macroquad-profiler = { git = "https://github.com/not-fl3/macroquad.git" }
+#macroquad-profiler = { git = "https://github.com/not-fl3/macroquad.git" }
 bitfield = "0.13"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

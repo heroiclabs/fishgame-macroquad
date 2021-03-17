@@ -1,12 +1,11 @@
 use macroquad::prelude::*;
 
 use macroquad_particles as particles;
-use macroquad_profiler as profiler;
 use macroquad_tiled as tiled;
 
 use macroquad::{
     experimental::{collections::storage, scene},
-    telemetry,
+    telemetry, ui,
 };
 
 use particles::EmittersCache;
@@ -21,6 +20,7 @@ mod credentials {
 mod bullets;
 mod camera;
 mod global_events;
+mod gui;
 mod level_background;
 mod net_syncronizer;
 mod pickup;
@@ -30,6 +30,7 @@ mod remote_player;
 use bullets::Bullets;
 use camera::Camera;
 use global_events::GlobalEvents;
+use gui::Scene;
 use level_background::LevelBackground;
 use net_syncronizer::NetSyncronizer;
 use pickup::Pickup;
@@ -45,6 +46,19 @@ pub mod consts {
     pub const JUMP_GRACE_TIME: f32 = 0.15;
     pub const NETWORK_FPS: f32 = 15.0;
     pub const GUN_THROWBACK: f32 = 700.0;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum GameType {
+    // No wining conditions, game going forever
+    // Used for quick game
+    Deathmatch,
+    // Killed players got removed from the game, the last one wins
+    LastFishStanding {
+        // match was created as a private match for friend,
+        // not as a matchmaking match
+        private: bool,
+    },
 }
 
 struct Resources {
@@ -132,34 +146,36 @@ impl Resources {
     }
 }
 
-#[macroquad::main("Fishgame")]
-async fn main() {
-    nakama::connect(
-        credentials::NAKAMA_KEY,
-        credentials::NAKAMA_SERVER,
-        credentials::NAKAMA_PORT,
-        credentials::NAKAMA_PROTOCOL,
-    );
+async fn join_quick_match() {
+    if nakama::authenticated() == false {
+        nakama::authenticate("super@heroes.com", "batsignal");
+        #[cfg(target_arch = "wasm32")]
+        {
+            while nakama::authenticated() == false {
+                clear_background(BLACK);
+                draw_text(
+                    &format!(
+                        "Connecting {}",
+                        ".".repeat(((get_time() * 2.0) as usize) % 4)
+                    ),
+                    screen_width() / 2.0 - 100.0,
+                    screen_height() / 2.0,
+                    40.,
+                    WHITE,
+                );
 
-    #[cfg(target_arch = "wasm32")]
-    {
-        while nakama::connected() == false {
-            clear_background(BLACK);
-            draw_text(
-                &format!(
-                    "Connecting {}",
-                    ".".repeat(((get_time() * 2.0) as usize) % 4)
-                ),
-                screen_width() / 2.0 - 100.0,
-                screen_height() / 2.0,
-                40.,
-                WHITE,
-            );
-
-            next_frame().await;
+                next_frame().await;
+            }
         }
+        warn!("authenticated");
     }
 
+    let match_id = nakama::join_quick_match().await;
+
+    warn!("{}", match_id);
+}
+
+async fn network_game(game_type: GameType) {
     let network_id = nakama::self_id();
 
     let resources = Resources::new().await;
@@ -170,10 +186,10 @@ async fn main() {
     storage::store(resources);
 
     scene::add_node(LevelBackground::new());
-    let player = scene::add_node(Player::new());
+    let player = scene::add_node(Player::new(game_type == GameType::Deathmatch));
 
     scene::add_node(Bullets::new(player));
-    let net_syncronizer = scene::add_node(NetSyncronizer::new(network_id));
+    let net_syncronizer = scene::add_node(NetSyncronizer::new(network_id, game_type));
     scene::add_node(GlobalEvents::new(player, net_syncronizer));
 
     let mut camera = Camera::new(Rect::new(0.0, 0.0, w as f32, h as f32), 400.0);
@@ -202,10 +218,82 @@ async fn main() {
 
         set_default_camera();
 
-        profiler::profiler(profiler::ProfilerParams {
-            fps_counter_pos: vec2(50.0, 20.0),
-        });
+        {
+            let resources = storage::get_mut::<gui::GuiResources>().unwrap();
+
+            ui::root_ui().push_skin(&resources.login_skin);
+
+            if ui::root_ui().button(None, "back")
+                || scene::find_node_by_type::<Player>().unwrap().want_quit
+            {
+                ui::root_ui().pop_skin();
+                scene::clear();
+                nakama::leave_match();
+                return;
+            }
+            ui::root_ui().pop_skin();
+        }
+
+        // profiler::profiler(profiler::ProfilerParams {
+        //     fps_counter_pos: vec2(50.0, 20.0),
+        // });
 
         next_frame().await;
+    }
+}
+
+#[macroquad::main("Fishgame")]
+async fn main() {
+    nakama::connect(
+        credentials::NAKAMA_KEY,
+        credentials::NAKAMA_SERVER,
+        credentials::NAKAMA_PORT,
+        credentials::NAKAMA_PROTOCOL,
+    );
+
+    let gui_resources = gui::GuiResources::new();
+    storage::store(gui_resources);
+
+    //let mut next_scene = gui::matchmaking_lobby().await;
+    let mut next_scene = gui::main_menu().await;
+    loop {
+        match next_scene {
+            Scene::MainMenu => {
+                next_scene = gui::main_menu().await;
+            }
+            Scene::QuickGame => {
+                join_quick_match().await;
+                network_game(GameType::Deathmatch).await;
+
+                nakama::logout();
+                // workaround, apparenlty there is no way to properly logout in nakama :(
+                nakama::connect(
+                    credentials::NAKAMA_KEY,
+                    credentials::NAKAMA_SERVER,
+                    credentials::NAKAMA_PORT,
+                    credentials::NAKAMA_PROTOCOL,
+                );
+
+                next_scene = Scene::MainMenu;
+            }
+            Scene::MatchmakingGame { private } => {
+                network_game(GameType::LastFishStanding { private }).await;
+                next_scene = Scene::MatchmakingLobby;
+            }
+            Scene::MatchmakingLobby => {
+                next_scene = gui::matchmaking_lobby().await;
+            }
+            Scene::Login => {
+                next_scene = gui::authentication().await;
+            }
+            Scene::WaitingForMatchmaking {
+                private
+            }=> {
+                next_scene = gui::waiting_for_matchmaking(private).await;
+            }
+            Scene::Credits => {
+                unimplemented!()
+            }
+        }
     }
 }

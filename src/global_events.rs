@@ -35,7 +35,7 @@ impl scene::Node for GlobalEvents {
     fn update(mut node: RefMut<Self>) {
         let mut net_syncronizer = scene::get_node(node.net_syncronizer).unwrap();
 
-        if net_syncronizer.is_host() == false {
+        if net_syncronizer.is_host() == false || net_syncronizer.game_started == false {
             return;
         }
 

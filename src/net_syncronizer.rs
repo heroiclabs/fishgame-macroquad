@@ -10,7 +10,11 @@ use macroquad::{
 use nanoserde::DeBin;
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::{consts, nakama, GameType, Pickup, Player, RemotePlayer, Resources};
+use crate::{
+    consts,
+    nakama::{self, ApiClient},
+    GameType, Pickup, Player, RemotePlayer, Resources,
+};
 
 struct NetworkCache {
     sent_position: [u8; 3],
@@ -152,7 +156,9 @@ impl NetSyncronizer {
     }
 
     pub fn spawn_item(&mut self, id: usize, pos: Vec2) {
-        nakama::send_bin(
+        let mut nakama = storage::get_mut::<nakama::ApiClient>().unwrap();
+
+        nakama.socket_send(
             message::SpawnItem::OPCODE,
             &message::SpawnItem {
                 id: id as _,
@@ -163,7 +169,9 @@ impl NetSyncronizer {
     }
 
     pub fn delete_item(&mut self, id: usize) {
-        nakama::send_bin(
+        let mut nakama = storage::get_mut::<nakama::ApiClient>().unwrap();
+
+        nakama.socket_send(
             message::DeleteItem::OPCODE,
             &message::DeleteItem { id: id as _ },
         );
@@ -174,12 +182,17 @@ impl scene::Node for NetSyncronizer {
     fn ready(_: RefMut<Self>) {
         let idle = async move {
             loop {
-                nakama::send_bin(message::Idle::OPCODE, &message::Idle);
+                {
+                    let mut nakama = storage::get_mut::<ApiClient>().unwrap();
+
+                    nakama.socket_send(message::Idle::OPCODE, &message::Idle);
+                }
                 wait_seconds(1.0).await;
             }
         };
         start_coroutine(idle);
     }
+
     fn draw(mut node: RefMut<Self>) {
         if node.is_host() {
             root_ui().label(None, "You are the host");
@@ -187,6 +200,7 @@ impl scene::Node for NetSyncronizer {
 
         if node.game_type != GameType::Deathmatch && node.game_started == false {
             let resources = storage::get::<crate::gui::GuiResources>().unwrap();
+            let mut nakama = storage::get_mut::<ApiClient>().unwrap();
 
             ui::root_ui().push_skin(&resources.login_skin);
             ui::root_ui().window(
@@ -198,7 +212,7 @@ impl scene::Node for NetSyncronizer {
                 Vec2::new(500., 200.),
                 |ui| {
                     if let GameType::LastFishStanding { private: true } = node.game_type {
-                        let mut match_id = nakama::match_id().unwrap_or("".to_string());
+                        let mut match_id = nakama.match_id().unwrap_or("".to_string());
 
                         widgets::InputText::new(hash!())
                             .ratio(3. / 4.)
@@ -231,13 +245,13 @@ impl scene::Node for NetSyncronizer {
 
                     if node.ready == false && ui.button(vec2(180.0, 100.0), "Ready") {
                         node.ready = true;
-                        nakama::send_bin(message::Ready::OPCODE, &message::Ready);
+                        nakama.socket_send(message::Ready::OPCODE, &message::Ready);
                     }
 
                     if node.is_host() && everyone_ready {
                         if ui.button(vec2(150.0, 100.0), "Start match!") {
                             node.game_started = true;
-                            nakama::send_bin(message::StartGame::OPCODE, &message::StartGame);
+                            nakama.socket_send(message::StartGame::OPCODE, &message::StartGame);
                         }
                     } else if node.ready {
                         ui.label(
@@ -271,41 +285,131 @@ impl scene::Node for NetSyncronizer {
                 state.set_shooting(shooting);
                 state.set_weapon(player.armed());
                 state.set_dead(player.is_dead());
-                if player.is_dead() {
-                    warn!("it was dead yea");
-                }
 
                 if node.network_cache.sent_position != state.0 {
                     node.network_cache.sent_position = state.0;
-                    nakama::send_bin(message::Move::OPCODE, &message::Move(state.0));
+                    let mut nakama = storage::get_mut::<ApiClient>().unwrap();
+
+                    nakama.socket_send(message::Move::OPCODE, &message::Move(state.0));
                 }
             }
         }
 
-        while let Some(event) = nakama::events() {
+        while let Some(event) = {
+            let mut nakama = storage::get_mut::<ApiClient>().unwrap();
+
+            nakama.try_recv()
+        } {
             match event {
-                nakama::Event::Leave(leaver) => {
-                    if let Some(leaver) = node.others.remove(&leaver) {
-                        let mut resources = storage::get_mut::<Resources>().unwrap();
+                nakama::Event::Presence { joins, leaves } => {
+                    for leaver in leaves {
+                        let leaver = leaver.session_id;
+                        if let Some(leaver) = node.others.remove(&leaver) {
+                            let mut resources = storage::get_mut::<Resources>().unwrap();
 
-                        let leaver = scene::get_node::<RemotePlayer>(leaver).unwrap();
-                        resources
-                            .explosion_fxses
-                            .spawn(leaver.pos() + vec2(15., 33.));
+                            let leaver = scene::get_node::<RemotePlayer>(leaver).unwrap();
+                            resources
+                                .explosion_fxses
+                                .spawn(leaver.pos() + vec2(15., 33.));
 
-                        leaver.delete();
+                            leaver.delete();
+                        }
+                        node.network_ids.remove(&leaver);
                     }
-                    node.network_ids.remove(&leaver);
+
+                    let self_session_id = node.network_id.clone();
+                    for join in joins
+                        .into_iter()
+                        .filter(|join| &join.session_id != &self_session_id)
+                    {
+                        let joined = join.session_id;
+                        let username = join.username;
+
+                        node.network_cache.flush();
+                        node.network_ids.insert(joined.clone());
+                        if node.others.contains_key(&joined) == false {
+                            node.others
+                                .insert(joined, scene::add_node(RemotePlayer::new(username)));
+                        }
+                    }
                 }
-                nakama::Event::Join {
-                    network_id: joined,
-                    username,
+                nakama::Event::MatchData {
+                    user_id,
+                    opcode,
+                    data,
                 } => {
-                    node.network_cache.flush();
-                    node.network_ids.insert(joined.clone());
-                    if node.others.contains_key(&joined) == false {
-                        node.others
-                            .insert(joined, scene::add_node(RemotePlayer::new(username)));
+                    if let Some(other) = node.others.get(&user_id) {
+                        let mut other = scene::get_node(*other).unwrap();
+
+                        match opcode as i32 {
+                            message::Move::OPCODE => {
+                                let message::Move(data) = DeBin::deserialize_bin(&data).unwrap();
+                                let state = PlayerStateBits(data);
+                                let pos = vec2(state.x() as f32, state.y() as f32);
+
+                                other.set_pos(pos);
+                                other.set_facing(state.facing());
+
+                                if state.dead() && other.dead != state.dead() {
+                                    warn!("state.dead() && other.dead != state.dead()");
+                                    let mut resources = storage::get_mut::<Resources>().unwrap();
+                                    resources
+                                        .explosion_fxses
+                                        .spawn(other.pos() + vec2(15., 33.));
+                                }
+                                other.set_dead(state.dead());
+
+                                if other.armed() && state.weapon() == false {
+                                    let mut resources = storage::get_mut::<Resources>().unwrap();
+                                    resources.disarm_fxses.spawn(pos + vec2(16., 33.));
+                                    other.disarm();
+                                }
+                                if other.armed() == false && state.weapon() {
+                                    other.pick_weapon();
+                                }
+                                if state.shooting() {
+                                    let mut bullets =
+                                        scene::find_node_by_type::<crate::Bullets>().unwrap();
+                                    bullets.spawn_bullet(pos, state.facing());
+                                }
+                            }
+                            message::Ready::OPCODE => {
+                                other.ready = true;
+                            }
+                            message::StartGame::OPCODE => {
+                                node.game_started = true;
+                            }
+                            message::SelfDamage::OPCODE => {
+                                let message::SelfDamage(_health) =
+                                    DeBin::deserialize_bin(&data).unwrap();
+                            }
+                            message::SpawnItem::OPCODE => {
+                                let message::SpawnItem { id, x, y } =
+                                    DeBin::deserialize_bin(&data).unwrap();
+                                let pos = vec2(x as f32, y as f32);
+
+                                let new_node = scene::add_node(Pickup::new(pos));
+                                if let Some(pickup) = node.pickups.insert(id as _, new_node) {
+                                    if let Some(node) = scene::get_node(pickup) {
+                                        node.delete();
+                                    }
+                                }
+                            }
+                            message::DeleteItem::OPCODE => {
+                                let message::DeleteItem { id } =
+                                    DeBin::deserialize_bin(&data).unwrap();
+
+                                if let Some(pickup) = node.pickups.remove(&(id as usize)) {
+                                    if let Some(node) = scene::get_node(pickup) {
+                                        node.delete();
+                                    }
+                                }
+                            }
+                            message::Idle::OPCODE => {}
+                            opcode => {
+                                warn!("Unknown opcode: {}", opcode);
+                            }
+                        }
                     }
                 }
             }
@@ -317,80 +421,6 @@ impl scene::Node for NetSyncronizer {
             }
             for player in scene::find_nodes_by_type::<RemotePlayer>() {
                 warn!("players: {} {:?}", &player.username, player.pos());
-            }
-        }
-
-        while let Some(msg) = nakama::try_recv() {
-            if let Some(other) = node.others.get(&msg.user_id) {
-                let mut other = scene::get_node(*other).unwrap();
-
-                match msg.opcode as i32 {
-                    message::Move::OPCODE => {
-                        let message::Move(data) = DeBin::deserialize_bin(&msg.data).unwrap();
-                        let state = PlayerStateBits(data);
-                        let pos = vec2(state.x() as f32, state.y() as f32);
-
-                        other.set_pos(pos);
-                        other.set_facing(state.facing());
-
-                        if state.dead() && other.dead != state.dead() {
-                            warn!("state.dead() && other.dead != state.dead()");
-                            let mut resources = storage::get_mut::<Resources>().unwrap();
-                            resources
-                                .explosion_fxses
-                                .spawn(other.pos() + vec2(15., 33.));
-                        }
-                        other.set_dead(state.dead());
-
-                        if other.armed() && state.weapon() == false {
-                            let mut resources = storage::get_mut::<Resources>().unwrap();
-                            resources.disarm_fxses.spawn(pos + vec2(16., 33.));
-                            other.disarm();
-                        }
-                        if other.armed() == false && state.weapon() {
-                            other.pick_weapon();
-                        }
-                        if state.shooting() {
-                            let mut bullets = scene::find_node_by_type::<crate::Bullets>().unwrap();
-                            bullets.spawn_bullet(pos, state.facing());
-                        }
-                    }
-                    message::Ready::OPCODE => {
-                        other.ready = true;
-                    }
-                    message::StartGame::OPCODE => {
-                        node.game_started = true;
-                    }
-                    message::SelfDamage::OPCODE => {
-                        let message::SelfDamage(_health) =
-                            DeBin::deserialize_bin(&msg.data).unwrap();
-                    }
-                    message::SpawnItem::OPCODE => {
-                        let message::SpawnItem { id, x, y } =
-                            DeBin::deserialize_bin(&msg.data).unwrap();
-                        let pos = vec2(x as f32, y as f32);
-
-                        let new_node = scene::add_node(Pickup::new(pos));
-                        if let Some(pickup) = node.pickups.insert(id as _, new_node) {
-                            if let Some(node) = scene::get_node(pickup) {
-                                node.delete();
-                            }
-                        }
-                    }
-                    message::DeleteItem::OPCODE => {
-                        let message::DeleteItem { id } = DeBin::deserialize_bin(&msg.data).unwrap();
-
-                        if let Some(pickup) = node.pickups.remove(&(id as usize)) {
-                            if let Some(node) = scene::get_node(pickup) {
-                                node.delete();
-                            }
-                        }
-                    }
-                    message::Idle::OPCODE => {}
-                    opcode => {
-                        warn!("Unknown opcode: {}", opcode);
-                    }
-                }
             }
         }
     }

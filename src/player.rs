@@ -428,7 +428,7 @@ impl Player {
             |ui| {
                 if node.win {
                     ui.label(vec2(190., 30.), "You win!");
-                    crate::nakama::add_leaderboard_win();
+                    //crate::nakama::add_leaderboard_win();
                 } else {
                     ui.label(vec2(190., 30.), "You lost!");
                 }

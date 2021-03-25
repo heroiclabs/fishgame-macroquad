@@ -4,14 +4,13 @@ use macroquad_particles as particles;
 use macroquad_tiled as tiled;
 
 use macroquad::{
-    experimental::{collections::storage, scene},
+    experimental::{collections::storage, coroutines::start_coroutine, scene},
     telemetry, ui,
 };
+use nanoserde::DeJson;
 
 use particles::EmittersCache;
 use physics_platformer::World as CollisionWorld;
-
-mod nakama;
 
 mod credentials {
     include!(concat!(env!("OUT_DIR"), "/nakama_credentials.rs"));
@@ -32,6 +31,7 @@ use camera::Camera;
 use global_events::GlobalEvents;
 use gui::Scene;
 use level_background::LevelBackground;
+use nakama::ApiClient;
 use net_syncronizer::NetSyncronizer;
 use pickup::Pickup;
 use player::Player;
@@ -46,6 +46,10 @@ pub mod consts {
     pub const JUMP_GRACE_TIME: f32 = 0.15;
     pub const NETWORK_FPS: f32 = 15.0;
     pub const GUN_THROWBACK: f32 = 700.0;
+}
+
+pub mod nakama {
+    pub use nakama_rs::api_client::{ApiClient, Event};
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -147,37 +151,66 @@ impl Resources {
 }
 
 async fn join_quick_match() {
-    if nakama::authenticated() == false {
-        nakama::authenticate("super@heroes.com", "batsignal");
-        #[cfg(target_arch = "wasm32")]
+    let authentication = start_coroutine(async move {
         {
-            while nakama::authenticated() == false {
-                clear_background(BLACK);
-                draw_text(
-                    &format!(
-                        "Connecting {}",
-                        ".".repeat(((get_time() * 2.0) as usize) % 4)
-                    ),
-                    screen_width() / 2.0 - 100.0,
-                    screen_height() / 2.0,
-                    40.,
-                    WHITE,
-                );
-
-                next_frame().await;
-            }
+            let mut nakama = storage::get_mut::<ApiClient>().unwrap();
+            nakama.authenticate("super@heroes.com", "batsignal");
         }
-        warn!("authenticated");
+
+        while storage::get::<ApiClient>().unwrap().authenticated() == false {
+            next_frame().await;
+        }
+    });
+
+    while authentication.is_done() == false {
+        clear_background(BLACK);
+        draw_text(
+            &format!(
+                "Connecting {}",
+                ".".repeat(((get_time() * 2.0) as usize) % 4)
+            ),
+            screen_width() / 2.0 - 100.0,
+            screen_height() / 2.0,
+            40.,
+            WHITE,
+        );
+
+        next_frame().await;
     }
 
-    let match_id = nakama::join_quick_match().await;
+    warn!("authenticated!");
 
-    warn!("{}", match_id);
+    {
+        let mut nakama = storage::get_mut::<ApiClient>().unwrap();
+
+        nakama.rpc(
+            "rpc_macroquad_find_match",
+            "\"{\\\"kind\\\":\\\"public\\\",\\\"engine\\\":\\\"macroquad\\\"}\"",
+        );
+    }
+    let response = loop {
+        if let Some(response) = storage::get::<ApiClient>().unwrap().rpc_response() {
+            break response;
+        }
+        next_frame().await;
+    };
+
+    // struct from lua rpc
+    #[derive(DeJson)]
+    struct Response {
+        match_id: String,
+    }
+    let response: Response = DeJson::deserialize_json(&response).unwrap();
+    storage::get_mut::<ApiClient>()
+        .unwrap()
+        .socket_join_match_by_id(&response.match_id);
+
+    while storage::get::<ApiClient>().unwrap().session_id.is_none() {
+        next_frame().await;
+    }
 }
 
-async fn network_game(game_type: GameType) {
-    let network_id = nakama::self_id();
-
+async fn network_game(game_type: GameType, network_id: String) {
     let resources = Resources::new().await;
 
     let w = resources.tiled_map.raw_tiled_map.tilewidth * resources.tiled_map.raw_tiled_map.width;
@@ -227,8 +260,6 @@ async fn network_game(game_type: GameType) {
                 || scene::find_node_by_type::<Player>().unwrap().want_quit
             {
                 ui::root_ui().pop_skin();
-                scene::clear();
-                nakama::leave_match();
                 return;
             }
             ui::root_ui().pop_skin();
@@ -242,17 +273,29 @@ async fn network_game(game_type: GameType) {
     }
 }
 
+fn start_nakama_tick_loop() {
+    let tick = async move {
+        loop {
+            storage::get_mut::<ApiClient>().unwrap().tick();
+            next_frame().await;
+        }
+    };
+    start_coroutine(tick);
+}
+
 #[macroquad::main("Fishgame")]
 async fn main() {
-    nakama::connect(
+    storage::store(ApiClient::new(
         credentials::NAKAMA_KEY,
         credentials::NAKAMA_SERVER,
         credentials::NAKAMA_PORT,
         credentials::NAKAMA_PROTOCOL,
-    );
+    ));
 
     let gui_resources = gui::GuiResources::new();
     storage::store(gui_resources);
+
+    start_nakama_tick_loop();
 
     //let mut next_scene = gui::matchmaking_lobby().await;
     let mut next_scene = gui::main_menu().await;
@@ -263,21 +306,41 @@ async fn main() {
             }
             Scene::QuickGame => {
                 join_quick_match().await;
-                network_game(GameType::Deathmatch).await;
+                let network_id = storage::get::<ApiClient>()
+                    .unwrap()
+                    .session_id
+                    .clone()
+                    .unwrap();
+                network_game(GameType::Deathmatch, network_id).await;
+                let match_leave = {
+                    let mut nakama = storage::get_mut::<ApiClient>().unwrap();
+                    nakama.socket_leave_match()
+                };
+                while storage::get::<ApiClient>()
+                    .unwrap()
+                    .socket_response(match_leave)
+                    .is_none()
+                {
+                    next_frame().await;
+                }
+                storage::get_mut::<ApiClient>().unwrap().logout();
 
-                nakama::logout();
-                // workaround, apparenlty there is no way to properly logout in nakama :(
-                nakama::connect(
-                    credentials::NAKAMA_KEY,
-                    credentials::NAKAMA_SERVER,
-                    credentials::NAKAMA_PORT,
-                    credentials::NAKAMA_PROTOCOL,
-                );
+                scene::clear();
+                start_nakama_tick_loop();
 
                 next_scene = Scene::MainMenu;
             }
             Scene::MatchmakingGame { private } => {
-                network_game(GameType::LastFishStanding { private }).await;
+                let network_id = storage::get::<ApiClient>()
+                    .unwrap()
+                    .session_id
+                    .clone()
+                    .unwrap();
+
+                network_game(GameType::LastFishStanding { private }, network_id).await;
+                scene::clear();
+                start_nakama_tick_loop();
+
                 next_scene = Scene::MatchmakingLobby;
             }
             Scene::MatchmakingLobby => {
@@ -286,9 +349,7 @@ async fn main() {
             Scene::Login => {
                 next_scene = gui::authentication().await;
             }
-            Scene::WaitingForMatchmaking {
-                private
-            }=> {
+            Scene::WaitingForMatchmaking { private } => {
                 next_scene = gui::waiting_for_matchmaking(private).await;
             }
             Scene::Credits => {

@@ -55,7 +55,6 @@ impl RemotePlayer {
     }
 
     pub fn set_dead(&mut self, dead: bool) {
-        warn!("set_dead: dead");
         self.dead = dead;
     }
 

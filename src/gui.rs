@@ -1,5 +1,5 @@
 use macroquad::{
-    color::BLACK,
+    color::{Color, BLACK},
     experimental::collections::storage,
     math::{vec2, RectOffset, Vec2},
     texture::Image,
@@ -8,7 +8,7 @@ use macroquad::{
     window::{clear_background, next_frame, screen_height, screen_width},
 };
 
-use crate::nakama;
+use crate::nakama::ApiClient;
 
 const WINDOW_WIDTH: f32 = 700.0;
 const WINDOW_HEIGHT: f32 = 300.0;
@@ -37,7 +37,7 @@ impl GuiResources {
             let label_style = root_ui()
                 .style_builder()
                 .font(include_bytes!("../assets/ui/MinimalPixel v2.ttf"))
-                .text_color(macroquad::ui::Color::from_rgba(255, 255, 255, 255))
+                .text_color(Color::from_rgba(255, 255, 255, 255))
                 .font_size(130)
                 .build();
 
@@ -58,7 +58,7 @@ impl GuiResources {
                     None,
                 ))
                 .font(include_bytes!("../assets/ui/MinimalPixel v2.ttf"))
-                .text_color(macroquad::ui::Color::from_rgba(200, 200, 160, 255))
+                .text_color(Color::from_rgba(200, 200, 160, 255))
                 .font_size(45)
                 .build();
 
@@ -73,7 +73,7 @@ impl GuiResources {
             let label_style = root_ui()
                 .style_builder()
                 .font(include_bytes!("../assets/ui/MinimalPixel v2.ttf"))
-                .text_color(macroquad::ui::Color::from_rgba(200, 200, 160, 255))
+                .text_color(Color::from_rgba(200, 200, 160, 255))
                 .font_size(20)
                 .build();
 
@@ -103,7 +103,7 @@ impl GuiResources {
                     None,
                 ))
                 .font(include_bytes!("../assets/ui/MinimalPixel v2.ttf"))
-                .text_color(macroquad::ui::Color::from_rgba(200, 200, 160, 255))
+                .text_color(Color::from_rgba(200, 200, 160, 255))
                 .font_size(25)
                 .build();
 
@@ -111,12 +111,12 @@ impl GuiResources {
                 .style_builder()
                 .background_margin(RectOffset::new(8.0, 8.0, 12.0, 12.0))
                 .font(include_bytes!("../assets/ui/MinimalPixel v2.ttf"))
-                .color(macroquad::ui::Color::from_rgba(58, 68, 102, 255))
-                .color_hovered(macroquad::ui::Color::from_rgba(149, 165, 190, 255))
-                .color_clicked(macroquad::ui::Color::from_rgba(129, 145, 170, 255))
-                .color_selected(macroquad::ui::Color::from_rgba(139, 155, 180, 255))
-                .color_selected_hovered(macroquad::ui::Color::from_rgba(149, 165, 190, 255))
-                .text_color(macroquad::ui::Color::from_rgba(255, 255, 255, 255))
+                .color(Color::from_rgba(58, 68, 102, 255))
+                .color_hovered(Color::from_rgba(149, 165, 190, 255))
+                .color_clicked(Color::from_rgba(129, 145, 170, 255))
+                .color_selected(Color::from_rgba(139, 155, 180, 255))
+                .color_selected_hovered(Color::from_rgba(149, 165, 190, 255))
+                .text_color(Color::from_rgba(255, 255, 255, 255))
                 .font_size(20)
                 .build();
 
@@ -132,7 +132,7 @@ impl GuiResources {
                 ))
                 .font(include_bytes!("../assets/ui/MinimalPixel v2.ttf"))
                 .background_margin(RectOffset::new(2., 2., 2., 2.))
-                .text_color(macroquad::ui::Color::from_rgba(120, 120, 120, 255))
+                .text_color(Color::from_rgba(120, 120, 120, 255))
                 .font_size(20)
                 .build();
 
@@ -150,7 +150,7 @@ impl GuiResources {
             let label_style = root_ui()
                 .style_builder()
                 .font(include_bytes!("../assets/ui/MinimalPixel v2.ttf"))
-                .text_color(macroquad::ui::Color::from_rgba(200, 200, 160, 255))
+                .text_color(Color::from_rgba(200, 200, 160, 255))
                 .font_size(35)
                 .build();
 
@@ -163,7 +163,7 @@ impl GuiResources {
             let label_style = root_ui()
                 .style_builder()
                 .font(include_bytes!("../assets/ui/MinimalPixel v2.ttf"))
-                .text_color(macroquad::ui::Color::from_rgba(255, 0, 0, 255))
+                .text_color(Color::from_rgba(255, 0, 0, 255))
                 .font_size(20)
                 .build();
 
@@ -253,6 +253,8 @@ pub async fn authentication() -> Scene {
         let resources = storage::get::<GuiResources>().unwrap();
         root_ui().push_skin(&resources.login_skin);
 
+        let mut nakama = storage::get_mut::<ApiClient>().unwrap();
+
         let mut next_scene = None;
         root_ui().window(
             hash!(),
@@ -262,7 +264,7 @@ pub async fn authentication() -> Scene {
             ),
             Vec2::new(WINDOW_WIDTH, WINDOW_HEIGHT),
             |ui| {
-                if nakama::async_in_progress() {
+                if nakama.in_progress() {
                     dots_amount += get_frame_time() * 1.5;
 
                     if dots_amount >= 4. {
@@ -292,13 +294,14 @@ pub async fn authentication() -> Scene {
                     ui.separator();
 
                     if ui.button(None, "Login") {
-                        nakama::authenticate(&email, &password);
+                        nakama.authenticate(&email, &password);
                     }
-                    // ui.push_skin(&resources.cheat_skin);
-                    // if ui.button(None, "Fast cheating login") {
-                    //     nakama::authenticate("super@heroes.com", "batsignal");
-                    // }
-                    // ui.pop_skin();
+                    ui.push_skin(&resources.cheat_skin);
+                    if ui.button(None, "Fast cheating login") {
+                        email = "super@heroes.com".to_owned();
+                        password = "batsignal".to_owned();
+                    }
+                    ui.pop_skin();
                 });
                 ui.group(hash!(), vec2(WINDOW_WIDTH / 2. - 28., 170.), |ui| {
                     ui.label(None, "Create an account");
@@ -322,25 +325,26 @@ pub async fn authentication() -> Scene {
 
                     if ui.button(None, "Register") {
                         authenticating = true;
-                        nakama::register(&email_new, &password_new, &username_new);
+                        nakama.register(&email_new, &password_new, &username_new);
                     }
                 });
 
                 ui.push_skin(&resources.error_skin);
-                ui.label(None, &nakama::error().unwrap_or("".to_string()));
+                {
+                    ui.label(None, &nakama.error().as_deref().unwrap_or(""));
+                }
                 ui.pop_skin();
 
                 ui.same_line(570.);
                 if ui.button(None, "Back") {
                     next_scene = Some(Scene::MainMenu);
-                    nakama::register(&email_new, &password_new, &username_new);
                 }
             },
         );
 
         root_ui().pop_skin();
 
-        if nakama::authenticated() {
+        if nakama.authenticated() {
             return Scene::MatchmakingLobby;
         }
 
@@ -348,13 +352,14 @@ pub async fn authentication() -> Scene {
             return next_scene;
         }
 
+        drop(nakama);
+
         next_frame().await;
     }
 }
 
 pub async fn matchmaking_lobby() -> Scene {
-    let username = nakama::username().unwrap_or_else(|| "PC player".to_string());
-
+    let username: String = storage::get::<ApiClient>().unwrap().username().unwrap();
     let mut minimum_players = "2".to_string();
     let mut maximum_players = "4".to_string();
 
@@ -368,6 +373,8 @@ pub async fn matchmaking_lobby() -> Scene {
         root_ui().push_skin(&resources.login_skin);
 
         let mut next_scene = None;
+
+        let mut nakama = storage::get_mut::<ApiClient>().unwrap();
 
         root_ui().window(
             hash!(),
@@ -398,14 +405,20 @@ pub async fn matchmaking_lobby() -> Scene {
                             .ui(ui, &mut maximum_players);
 
                         if ui.button(None, "Start matchmaking") {
-                            nakama::add_matchmaker();
+                            nakama.socket_add_matchmaker(
+                                minimum_players.parse::<u32>().unwrap(),
+                                maximum_players.parse::<u32>().unwrap(),
+                                "+properties.engine:\\\"macroquad_matchmaking\\\"",
+                                "{\"engine\":\"macroquad_matchmaking\"}",
+                            );
+
                             next_scene = Some(Scene::WaitingForMatchmaking { private: false });
                         }
                     }
                     1 => {
                         ui.group(hash!(), vec2(WINDOW_WIDTH / 2. - 38., 70.), |ui| {
                             if ui.button(None, "Create match") {
-                                nakama::create_private_match();
+                                nakama.socket_create_match();
                                 next_scene = Some(Scene::WaitingForMatchmaking { private: true });
                             }
                         });
@@ -415,23 +428,23 @@ pub async fn matchmaking_lobby() -> Scene {
                                 .label("Match ID")
                                 .ui(ui, &mut match_id);
                             if ui.button(None, "Join match by ID") {
-                                nakama::join_match(&match_id);
+                                nakama.socket_join_match_by_id(&match_id);
                                 next_scene = Some(Scene::WaitingForMatchmaking { private: true });
                             }
                         });
                     }
                     2 => {
                         if leaderboard_loaded == false {
-                            nakama::load_leaderboard_records();
+                            //nakama::load_leaderboard_records();
                             leaderboard_loaded = true;
                         }
-                        if let Some(records) = nakama::leaderboard_records() {
-                            for record in records {
-                                ui.label(None, &format!("{}", record.username));
-                                ui.same_line(300.0);
-                                ui.label(None, &format!("{}", record.score));
-                            }
-                        }
+                        // if let Some(records) = nakama::leaderboard_records() {
+                        //     for record in records {
+                        //         ui.label(None, &format!("{}", record.username));
+                        //         ui.same_line(300.0);
+                        //         ui.label(None, &format!("{}", record.score));
+                        //     }
+                        // }
                     }
                     _ => unreachable!(),
                 }
@@ -441,6 +454,7 @@ pub async fn matchmaking_lobby() -> Scene {
                 }
             },
         );
+        drop(nakama);
 
         root_ui().pop_skin();
 
@@ -457,10 +471,22 @@ pub async fn waiting_for_matchmaking(private: bool) -> Scene {
 
     let resources = storage::get::<GuiResources>().unwrap();
 
+    enum State {
+        WaitingForMatchmaking,
+        WaitingForMatchJoin,
+    }
+    let mut state = if private {
+        State::WaitingForMatchJoin
+    } else {
+        State::WaitingForMatchmaking
+    };
+
     loop {
         root_ui().push_skin(&resources.login_skin);
 
         let mut next_scene = None;
+
+        let mut nakama = storage::get_mut::<ApiClient>().unwrap();
 
         root_ui().window(
             hash!(),
@@ -469,34 +495,44 @@ pub async fn waiting_for_matchmaking(private: bool) -> Scene {
                 screen_height() / 2. - WINDOW_HEIGHT / 2.,
             ),
             Vec2::new(WINDOW_WIDTH, WINDOW_HEIGHT),
-            |ui| {
-                if nakama::async_in_progress() {
-                    dots_amount += get_frame_time() * 1.5;
+            |ui| match state {
+                State::WaitingForMatchmaking => {
+                    let token = nakama.matchmaker_token.clone();
+                    if token.is_none() {
+                        dots_amount += get_frame_time() * 1.5;
 
-                    if dots_amount >= 4. {
-                        dots_amount = 0.;
+                        if dots_amount >= 4. {
+                            dots_amount = 0.;
+                        }
+                        ui.push_skin(&resources.authenticating_skin);
+                        ui.label(
+                            Some(vec2(150., WINDOW_HEIGHT / 2. - 40.)),
+                            &format!("Looking for a match{}", ".".repeat(dots_amount as usize)),
+                        );
+                        ui.pop_skin();
+                        return;
                     }
-                    ui.push_skin(&resources.authenticating_skin);
-                    ui.label(
-                        Some(vec2(150., WINDOW_HEIGHT / 2. - 40.)),
-                        &format!("Looking for a match{}", ".".repeat(dots_amount as usize)),
-                    );
-                    ui.pop_skin();
-                    return;
+                    if let Some(_error) = nakama.error().clone() {
+                        ui.label(None, "Invalid match ID");
+                        if ui.button(None, "Back to matchmaking") {
+                            next_scene = Some(Scene::MatchmakingLobby);
+                        }
+                    } else {
+                        nakama.socket_join_match_by_token(&token.unwrap());
+                        state = State::WaitingForMatchJoin;
+                    }
                 }
-
-                if let Some(_error) = nakama::error() {
-                    ui.label(None, "Invalid match ID");
-                    if ui.button(None, "Back to matchmaking") {
-                        next_scene = Some(Scene::MatchmakingLobby);
+                State::WaitingForMatchJoin => {
+                    if nakama.match_id().is_some() {
+                        next_scene = Some(Scene::MatchmakingGame { private });
                     }
-                } else {
-                    next_scene = Some(Scene::MatchmakingGame { private });
                 }
             },
         );
 
         root_ui().pop_skin();
+
+        drop(nakama);
 
         if let Some(scene) = next_scene {
             return scene;

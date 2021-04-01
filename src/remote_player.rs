@@ -1,15 +1,21 @@
 use macroquad::{
     experimental::{
         collections::storage,
-        scene::{self, RefMut},
+        coroutines::{start_coroutine, wait_seconds},
+        scene::{self, Handle, RefMut},
     },
     prelude::*,
 };
 
-use crate::{player::Fish, Resources};
+use crate::{
+    pickup::ItemType,
+    player::{Fish, Weapon},
+    Resources,
+};
 
 pub struct RemotePlayer {
     pub username: String,
+    pub id: String,
     fish: Fish,
 
     pub dead: bool,
@@ -19,12 +25,13 @@ pub struct RemotePlayer {
 }
 
 impl RemotePlayer {
-    pub fn new(username: String) -> RemotePlayer {
+    pub fn new(username: &str, id: &str) -> RemotePlayer {
         let pos = vec2(100., 105.);
 
         RemotePlayer {
             fish: Fish::new(pos),
-            username,
+            username: username.to_string(),
+            id: id.to_string(),
             pos_delta: vec2(0.0, 0.0),
             last_move_time: 0.0,
             ready: false,
@@ -32,16 +39,20 @@ impl RemotePlayer {
         }
     }
 
-    pub fn pick_weapon(&mut self) {
-        self.fish.pick_weapon()
+    pub fn pick_weapon(&mut self, item_type: ItemType) {
+        self.fish.pick_weapon(item_type)
     }
 
     pub fn disarm(&mut self) {
         self.fish.disarm()
     }
 
-    pub fn armed(&self) -> bool {
-        self.fish.armed()
+    pub fn weapon(&self) -> Option<ItemType> {
+        match self.fish.weapon {
+            None => None,
+            Some(Weapon::Gun { .. }) => Some(ItemType::Gun),
+            Some(Weapon::Sword) => Some(ItemType::Sword),
+        }
     }
 
     pub fn set_pos(&mut self, pos: Vec2) {
@@ -61,8 +72,45 @@ impl RemotePlayer {
     pub fn pos(&self) -> Vec2 {
         self.fish.pos()
     }
-}
 
+    pub fn shoot(&mut self, handle: Handle<Self>) {
+        match self.fish.weapon {
+            Some(Weapon::Gun { .. }) => {
+                let mut bullets = scene::find_node_by_type::<crate::Bullets>().unwrap();
+                bullets.spawn_bullet(self.pos(), self.fish.facing());
+            }
+            Some(Weapon::Sword) => {
+                let swing = async move {
+                    {
+                        if let Some(mut node) = scene::get_node(handle) {
+                            node.fish.sword_sprite.set_animation(1);
+                        }
+                    }
+
+                    for i in 0u32..3 {
+                        {
+                            if let Some(mut node) = scene::get_node(handle) {
+                                node.fish.sword_sprite.set_frame(i);
+                            }
+                        }
+
+                        wait_seconds(0.08).await;
+                    }
+
+                    {
+                        if let Some(mut node) = scene::get_node(handle) {
+                            node.fish.sword_sprite.set_animation(0);
+                        }
+                    }
+                };
+                start_coroutine(swing);
+            }
+            None => {
+                println!("well");
+            }
+        }
+    }
+}
 impl scene::Node for RemotePlayer {
     fn draw(mut node: RefMut<Self>) {
         draw_text_ex(

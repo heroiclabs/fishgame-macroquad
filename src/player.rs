@@ -12,7 +12,7 @@ use macroquad::{
 };
 use physics_platformer::Actor;
 
-use crate::{consts, Pickup, Resources};
+use crate::{consts, pickup::ItemType, Pickup, Resources};
 
 #[derive(Default, Debug, Clone)]
 pub struct Input {
@@ -22,9 +22,15 @@ pub struct Input {
     right: bool,
 }
 
+pub enum Weapon {
+    Gun { bullets: i32 },
+    Sword,
+}
+
 pub struct Fish {
     fish_sprite: AnimatedSprite,
     gun_sprite: AnimatedSprite,
+    pub sword_sprite: AnimatedSprite,
     gun_fx_sprite: AnimatedSprite,
     gun_fx: bool,
     pub collider: Actor,
@@ -33,7 +39,7 @@ pub struct Fish {
     on_ground: bool,
     dead: bool,
     facing: bool,
-    weapon: Option<i32>,
+    pub weapon: Option<Weapon>,
     input: Input,
 }
 
@@ -91,6 +97,25 @@ impl Fish {
             ],
             false,
         );
+        let sword_sprite = AnimatedSprite::new(
+            65,
+            93,
+            &[
+                Animation {
+                    name: "idle".to_string(),
+                    row: 0,
+                    frames: 1,
+                    fps: 1,
+                },
+                Animation {
+                    name: "shoot".to_string(),
+                    row: 1,
+                    frames: 4,
+                    fps: 15,
+                },
+            ],
+            false,
+        );
         let gun_fx_sprite = AnimatedSprite::new(
             92,
             32,
@@ -107,6 +132,7 @@ impl Fish {
             gun_fx_sprite,
             gun_fx: false,
             gun_sprite,
+            sword_sprite,
             collider: resources.collision_world.add_actor(spawner_pos, 30, 54),
             on_ground: false,
             dead: false,
@@ -116,6 +142,10 @@ impl Fish {
             weapon: None,
             input: Default::default(),
         }
+    }
+
+    pub fn facing(&self) -> bool {
+        self.facing
     }
 
     pub fn pos(&self) -> Vec2 {
@@ -138,12 +168,13 @@ impl Fish {
         self.weapon = None;
     }
 
-    pub fn pick_weapon(&mut self) {
-        self.weapon = Some(3);
-    }
-
-    pub fn armed(&self) -> bool {
-        self.weapon.is_some()
+    pub fn pick_weapon(&mut self, item_type: ItemType) {
+        match item_type {
+            ItemType::Gun => {
+                self.weapon = Some(Weapon::Gun { bullets: 3 });
+            }
+            ItemType::Sword => self.weapon = Some(Weapon::Sword),
+        }
     }
 
     pub fn facing_dir(&self) -> f32 {
@@ -172,7 +203,7 @@ impl Fish {
             },
         );
 
-        if self.dead == false && self.weapon.is_some() {
+        if self.dead == false && matches!(self.weapon, Some(Weapon::Gun { .. })) {
             let gun_mount_pos = if self.facing {
                 vec2(0., 16.)
             } else {
@@ -208,6 +239,27 @@ impl Fish {
                 );
             }
         }
+
+        if self.dead == false && matches!(self.weapon, Some(Weapon::Sword)) {
+            let sword_mount_pos = if self.facing {
+                vec2(10., -35.)
+            } else {
+                vec2(-50., -35.)
+            };
+            self.sword_sprite.update();
+            draw_texture_ex(
+                resources.sword,
+                self.pos.x + sword_mount_pos.x,
+                self.pos.y + sword_mount_pos.y,
+                color::WHITE,
+                DrawTextureParams {
+                    source: Some(self.sword_sprite.frame().source_rect),
+                    dest_size: Some(self.sword_sprite.frame().dest_size),
+                    flip_x: !self.facing,
+                    ..Default::default()
+                },
+            );
+        }
     }
 }
 
@@ -225,13 +277,14 @@ impl Player {
     const ST_NORMAL: usize = 0;
     const ST_DEATH: usize = 1;
     const ST_SHOOT: usize = 2;
-    const ST_AFTERMATCH: usize = 3;
+    const ST_SWORD_SHOOT: usize = 3;
+    const ST_AFTERMATCH: usize = 4;
 
     pub fn new(deathmatch: bool) -> Player {
         let spawner_pos = {
             let resources = storage::get_mut::<Resources>().unwrap();
             let objects = &resources.tiled_map.layers["logic"].objects;
-            let macroquad_tiled::Object::Rect {
+            let macroquad_tiled::Object {
                 world_x, world_y, ..
             } = objects[rand::gen_range(0, objects.len()) as usize];
             vec2(world_x, world_y)
@@ -248,6 +301,12 @@ impl Player {
             State::new()
                 .update(Self::update_shoot)
                 .coroutine(Self::shoot_coroutine),
+        );
+        state_machine.add_state(
+            Self::ST_SWORD_SHOOT,
+            State::new()
+                .update(Self::update_sword_shoot)
+                .coroutine(Self::sword_shoot_coroutine),
         );
         state_machine.add_state(
             Self::ST_AFTERMATCH,
@@ -272,8 +331,12 @@ impl Player {
         self.fish.facing
     }
 
-    pub fn pick_weapon(&mut self) {
-        self.fish.weapon = Some(3);
+    pub fn pick_weapon(&mut self, item_type: ItemType) {
+        if self.state_machine.state() != Self::ST_SHOOT
+            && self.state_machine.state() != Self::ST_SWORD_SHOOT
+        {
+            self.fish.pick_weapon(item_type);
+        }
     }
 
     pub fn is_dead(&self) -> bool {
@@ -285,8 +348,12 @@ impl Player {
         self.state_machine.set_state(Self::ST_DEATH);
     }
 
-    pub fn armed(&self) -> bool {
-        self.fish.weapon.is_some()
+    pub fn weapon(&self) -> Option<ItemType> {
+        match self.fish.weapon {
+            None => None,
+            Some(Weapon::Gun { .. }) => Some(ItemType::Gun),
+            Some(Weapon::Sword) => Some(ItemType::Sword),
+        }
     }
 
     fn death_coroutine(node: &mut RefMut<Player>) -> Coroutine {
@@ -333,7 +400,7 @@ impl Player {
 
             this.fish.pos = {
                 let objects = &resources.tiled_map.layers["logic"].objects;
-                let macroquad_tiled::Object::Rect {
+                let macroquad_tiled::Object {
                     world_x, world_y, ..
                 } = objects[rand::gen_range(0, objects.len()) as usize];
 
@@ -391,13 +458,15 @@ impl Player {
             let mut node = &mut *scene::get_node(handle).unwrap();
 
             node.fish.gun_fx = false;
-            let weapon = node.fish.weapon.as_mut().unwrap();
-            *weapon -= 1;
 
-            if *weapon <= 0 {
-                let mut resources = storage::get_mut::<Resources>().unwrap();
-                resources.disarm_fxses.spawn(node.fish.pos + vec2(16., 33.));
-                node.fish.weapon = None;
+            if let Weapon::Gun { bullets } = node.fish.weapon.as_mut().unwrap() {
+                *bullets -= 1;
+
+                if *bullets <= 0 {
+                    let mut resources = storage::get_mut::<Resources>().unwrap();
+                    resources.disarm_fxses.spawn(node.fish.pos + vec2(16., 33.));
+                    node.fish.weapon = None;
+                }
             }
 
             // node.weapon_animation.play(0, 0..5).await;
@@ -409,6 +478,61 @@ impl Player {
     }
 
     fn update_shoot(node: &mut RefMut<Player>, _dt: f32) {
+        node.fish.speed.x *= 0.9;
+    }
+
+    fn sword_shoot_coroutine(node: &mut RefMut<Player>) -> Coroutine {
+        let handle = node.handle();
+        let coroutine = async move {
+            {
+                let node = &mut *scene::get_node(handle).unwrap();
+                node.fish.sword_sprite.set_animation(1);
+
+                let mut net_syncronizer =
+                    scene::find_node_by_type::<crate::NetSyncronizer>().unwrap();
+                net_syncronizer.shoot();
+            }
+
+            {
+                let node = &mut *scene::get_node(handle).unwrap();
+                let others = scene::find_nodes_by_type::<crate::RemotePlayer>();
+                let sword_hit_box = if node.fish.facing {
+                    Rect::new(node.pos().x + 35., node.pos().y - 5., 40., 60.)
+                } else {
+                    Rect::new(node.pos().x - 50., node.pos().y - 5., 40., 60.)
+                };
+
+                for player in others {
+                    if Rect::new(player.pos().x, player.pos().y, 20., 64.).overlaps(&sword_hit_box)
+                    {
+                        let mut net = scene::find_node_by_type::<crate::NetSyncronizer>().unwrap();
+                        net.kill(&player.id, !node.fish.facing);
+                    }
+                }
+            }
+
+            for i in 0u32..3 {
+                {
+                    let node = &mut *scene::get_node(handle).unwrap();
+                    node.fish.sword_sprite.set_frame(i);
+                }
+
+                wait_seconds(0.08).await;
+            }
+
+            {
+                let mut node = scene::get_node(handle).unwrap();
+                node.fish.sword_sprite.set_animation(0);
+            }
+
+            let node = &mut *scene::get_node(handle).unwrap();
+            node.state_machine.set_state(Self::ST_NORMAL);
+        };
+
+        start_coroutine(coroutine)
+    }
+
+    fn update_sword_shoot(node: &mut RefMut<Player>, _dt: f32) {
         node.fish.speed.x *= 0.9;
     }
 
@@ -473,8 +597,10 @@ impl Player {
         }
 
         if fish.input.fire {
-            if fish.weapon.is_some() {
-                node.state_machine.set_state(Self::ST_SHOOT);
+            match fish.weapon {
+                Some(Weapon::Gun { .. }) => node.state_machine.set_state(Self::ST_SHOOT),
+                Some(Weapon::Sword) => node.state_machine.set_state(Self::ST_SWORD_SHOOT),
+                None => {}
             }
         }
     }
@@ -483,7 +609,7 @@ impl Player {
         if self.is_dead() {
             return;
         }
-        if let Some(bullets) = self.fish.weapon {
+        if let Some(Weapon::Gun { bullets }) = self.fish.weapon {
             let full_color = Color::new(0.8, 0.9, 1.0, 1.0);
             let empty_color = Color::new(0.8, 0.9, 1.0, 0.8);
             for i in 0..3 {
@@ -501,6 +627,18 @@ impl Player {
 
 impl scene::Node for Player {
     fn draw(mut node: RefMut<Self>) {
+        //     let sword_hit_box = if node.fish.facing {
+        //         Rect::new(node.pos().x + 35., node.pos().y - 5., 40., 60.)
+        //     } else {
+        //         Rect::new(node.pos().x - 50., node.pos().y - 5., 40., 60.)
+        //     };
+        //     draw_rectangle(
+        //         sword_hit_box.x,
+        //         sword_hit_box.y,
+        //         sword_hit_box.w,
+        //         sword_hit_box.h,
+        //         RED,
+        //     );
         node.fish.draw();
 
         node.draw_hud();
@@ -576,8 +714,8 @@ impl scene::Node for Player {
             };
 
             if collide(node.pos(), pickup.pos) {
+                node.pick_weapon(pickup.item_type);
                 pickup.delete();
-                node.pick_weapon();
             }
         }
     }

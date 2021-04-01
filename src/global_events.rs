@@ -6,7 +6,7 @@ use macroquad::{
     prelude::*,
 };
 
-use crate::{NetSyncronizer, Pickup, Player, RemotePlayer, Resources};
+use crate::{pickup::ItemType, NetSyncronizer, Pickup, Player, RemotePlayer, Resources};
 
 pub struct GlobalEvents {
     last_spawn_time: f64,
@@ -72,10 +72,15 @@ impl scene::Node for GlobalEvents {
 
             node.last_spawn_time = get_time();
 
+            let item_type = if rand::gen_range(0, 2) == 0 {
+                ItemType::Gun
+            } else {
+                ItemType::Sword
+            };
             let item_id = node.uid;
             node.spawned_items
-                .push((item_id, scene::add_node(Pickup::new(pos))));
-            net_syncronizer.spawn_item(item_id, pos);
+                .push((item_id, scene::add_node(Pickup::new(pos, item_type))));
+            net_syncronizer.spawn_item(item_id, pos, item_type);
 
             node.uid += 1;
         }
@@ -84,7 +89,7 @@ impl scene::Node for GlobalEvents {
 
         node.spawned_items.retain(|(id, item_handle)| {
             let item = scene::get_node(*item_handle);
-            // already destroyed itself
+            // already destroyed itself.
             if item.is_none() {
                 net_syncronizer.delete_item(*id);
                 return false;

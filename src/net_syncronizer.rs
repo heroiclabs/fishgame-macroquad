@@ -13,17 +13,18 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     consts,
     nakama::{self, ApiClient},
+    pickup::ItemType,
     GameType, Pickup, Player, RemotePlayer, Resources,
 };
 
 struct NetworkCache {
-    sent_position: [u8; 3],
+    sent_position: [u8; 4],
     last_send_time: f64,
 }
 
 impl NetworkCache {
     fn flush(&mut self) {
-        self.sent_position = [0; 3];
+        self.sent_position = [0; 4];
         self.last_send_time = 0.0;
     }
 }
@@ -36,38 +37,44 @@ bitfield::bitfield! {
     y, set_y: 19, 10;
     facing, set_facing: 20;
     shooting, set_shooting: 21;
-    weapon, set_weapon: 22;
-    dead, set_dead: 23;
+    weapon, set_weapon: 30, 22;
+    dead, set_dead: 31;
 }
 
 #[test]
 fn test_bitfield() {
-    let mut bits = PlayerStateBits([0; 3]);
+    let mut bits = PlayerStateBits([0; 4]);
 
     bits.set_x(345);
     bits.set_y(567);
     bits.set_facing(true);
     bits.set_shooting(false);
+    bits.set_weapon(66);
 
     assert_eq!(bits.x(), 345);
     assert_eq!(bits.y(), 567);
     assert_eq!(bits.facing(), true);
     assert_eq!(bits.shooting(), false);
-    assert_eq!(std::mem::size_of_val(&bits), 3);
+    assert_eq!(bits.weapon(), 66);
+    assert_eq!(bits.dead(), false);
+    assert_eq!(std::mem::size_of_val(&bits), 4);
 }
 
 mod message {
     use nanoserde::{DeBin, SerBin};
 
     #[derive(Debug, Clone, SerBin, DeBin, PartialEq)]
-    pub struct Move(pub [u8; 3]);
+    pub struct Move(pub [u8; 4]);
     impl Move {
         pub const OPCODE: i32 = 1;
     }
 
     #[derive(Debug, Clone, SerBin, DeBin, PartialEq)]
-    pub struct SelfDamage(pub u8);
-    impl SelfDamage {
+    pub struct Damage {
+        pub target: String,
+        pub direction: bool,
+    }
+    impl Damage {
         pub const OPCODE: i32 = 2;
     }
 
@@ -76,6 +83,7 @@ mod message {
         pub id: u32,
         pub x: u16,
         pub y: u16,
+        pub item_type: u8,
     }
     impl SpawnItem {
         pub const OPCODE: i32 = 4;
@@ -125,7 +133,7 @@ impl NetSyncronizer {
         NetSyncronizer {
             game_type,
             network_cache: NetworkCache {
-                sent_position: [0; 3],
+                sent_position: [0; 4],
                 last_send_time: 0.0,
             },
             others: BTreeMap::new(),
@@ -155,7 +163,7 @@ impl NetSyncronizer {
         self.shoot_pending = true;
     }
 
-    pub fn spawn_item(&mut self, id: usize, pos: Vec2) {
+    pub fn spawn_item(&mut self, id: usize, pos: Vec2, item_type: ItemType) {
         let mut nakama = storage::get_mut::<nakama::ApiClient>().unwrap();
 
         nakama.socket_send(
@@ -164,6 +172,7 @@ impl NetSyncronizer {
                 id: id as _,
                 x: pos.x as _,
                 y: pos.y as _,
+                item_type: item_type as _,
             },
         );
     }
@@ -174,6 +183,18 @@ impl NetSyncronizer {
         nakama.socket_send(
             message::DeleteItem::OPCODE,
             &message::DeleteItem { id: id as _ },
+        );
+    }
+
+    pub fn kill(&mut self, target: &str, direction: bool) {
+        let mut nakama = storage::get_mut::<nakama::ApiClient>().unwrap();
+
+        nakama.socket_send(
+            message::Damage::OPCODE,
+            &message::Damage {
+                target: target.to_string(),
+                direction,
+            },
         );
     }
 }
@@ -277,13 +298,18 @@ impl scene::Node for NetSyncronizer {
 
                 node.network_cache.last_send_time = get_time();
 
-                let mut state = PlayerStateBits([0; 3]);
+                let mut state = PlayerStateBits([0; 4]);
 
                 state.set_x(player.pos().x as u32);
                 state.set_y(player.pos().y as u32);
                 state.set_facing(player.facing());
                 state.set_shooting(shooting);
-                state.set_weapon(player.armed());
+                let weapon = match player.weapon() {
+                    None => 0,
+                    Some(ItemType::Gun) => 1,
+                    Some(ItemType::Sword) => 2,
+                };
+                state.set_weapon(weapon);
                 state.set_dead(player.is_dead());
 
                 if node.network_cache.sent_position != state.0 {
@@ -328,8 +354,10 @@ impl scene::Node for NetSyncronizer {
                         node.network_cache.flush();
                         node.network_ids.insert(joined.clone());
                         if node.others.contains_key(&joined) == false {
-                            node.others
-                                .insert(joined, scene::add_node(RemotePlayer::new(username)));
+                            node.others.insert(
+                                joined.clone(),
+                                scene::add_node(RemotePlayer::new(&username, &joined)),
+                            );
                         }
                     }
                 }
@@ -351,7 +379,6 @@ impl scene::Node for NetSyncronizer {
                                 other.set_facing(state.facing());
 
                                 if state.dead() && other.dead != state.dead() {
-                                    warn!("state.dead() && other.dead != state.dead()");
                                     let mut resources = storage::get_mut::<Resources>().unwrap();
                                     resources
                                         .explosion_fxses
@@ -359,18 +386,23 @@ impl scene::Node for NetSyncronizer {
                                 }
                                 other.set_dead(state.dead());
 
-                                if other.armed() && state.weapon() == false {
+                                if other.weapon().is_some() && state.weapon() == 0 {
                                     let mut resources = storage::get_mut::<Resources>().unwrap();
                                     resources.disarm_fxses.spawn(pos + vec2(16., 33.));
                                     other.disarm();
                                 }
-                                if other.armed() == false && state.weapon() {
-                                    other.pick_weapon();
+                                if other.weapon().map_or(0, |weapon| weapon as u32)
+                                    != state.weapon()
+                                {
+                                    match state.weapon() {
+                                        1 => other.pick_weapon(ItemType::Gun),
+                                        2 => other.pick_weapon(ItemType::Sword),
+                                        _ => unreachable!(),
+                                    }
                                 }
                                 if state.shooting() {
-                                    let mut bullets =
-                                        scene::find_node_by_type::<crate::Bullets>().unwrap();
-                                    bullets.spawn_bullet(pos, state.facing());
+                                    let handle = other.handle();
+                                    other.shoot(handle);
                                 }
                             }
                             message::Ready::OPCODE => {
@@ -379,16 +411,31 @@ impl scene::Node for NetSyncronizer {
                             message::StartGame::OPCODE => {
                                 node.game_started = true;
                             }
-                            message::SelfDamage::OPCODE => {
-                                let message::SelfDamage(_health) =
+                            message::Damage::OPCODE => {
+                                let message::Damage { target, direction } =
                                     DeBin::deserialize_bin(&data).unwrap();
+                                if target == node.network_id {
+                                    let mut player = scene::find_node_by_type::<Player>().unwrap();
+                                    player.kill(direction);
+                                }
                             }
                             message::SpawnItem::OPCODE => {
-                                let message::SpawnItem { id, x, y } =
-                                    DeBin::deserialize_bin(&data).unwrap();
+                                let message::SpawnItem {
+                                    id,
+                                    x,
+                                    y,
+                                    item_type,
+                                } = DeBin::deserialize_bin(&data).unwrap();
                                 let pos = vec2(x as f32, y as f32);
 
-                                let new_node = scene::add_node(Pickup::new(pos));
+                                let new_node = scene::add_node(Pickup::new(
+                                    pos,
+                                    match item_type {
+                                        x if x == ItemType::Sword as u8 => ItemType::Sword,
+                                        x if x == ItemType::Gun as u8 => ItemType::Gun,
+                                        _ => unreachable!(),
+                                    },
+                                ));
                                 if let Some(pickup) = node.pickups.insert(id as _, new_node) {
                                     if let Some(node) = scene::get_node(pickup) {
                                         node.delete();

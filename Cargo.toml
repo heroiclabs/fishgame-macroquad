@@ -22,7 +22,9 @@ sapp-jsutils = "0.1"
 macroquad = { git = "https://github.com/not-fl3/macroquad.git" }
 
 #[patch.'https://github.com/not-fl3/macroquad.git']
-# macroquad = { path = "../macroquad" }
+#macroquad = { path = "../macroquad" }
+#macroquad-tiled = { path = "../macroquad/tiled" }
+
 # macroquad-particles = { path = "../macroquad/particles" }
 # physics-platformer = { path = "../macroquad/physics-platformer" }
 # macroquad-profiler = { path = "../macroquad/profiler" }

@@ -417,8 +417,7 @@ pub async fn matchmaking_lobby() -> Scene {
                     }
                     1 => {
                         ui.group(hash!(), vec2(WINDOW_WIDTH / 2. - 38., 70.), |ui| {
-                            if ui.button(None, "Create match") {
-                                nakama.socket_create_match();
+                            if ui.button(None, "Create match") {                                nakama.socket_create_match();
                                 next_scene = Some(Scene::WaitingForMatchmaking { private: true });
                             }
                         });

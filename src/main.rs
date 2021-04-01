@@ -18,6 +18,7 @@ mod credentials {
 
 mod bullets;
 mod camera;
+mod decoration;
 mod global_events;
 mod gui;
 mod level_background;
@@ -28,6 +29,7 @@ mod remote_player;
 
 use bullets::Bullets;
 use camera::Camera;
+use decoration::Decoration;
 use global_events::GlobalEvents;
 use gui::Scene;
 use level_background::LevelBackground;
@@ -73,10 +75,12 @@ struct Resources {
     collision_world: CollisionWorld,
     whale: Texture2D,
     gun: Texture2D,
+    sword: Texture2D,
     background_01: Texture2D,
     background_02: Texture2D,
     background_03: Texture2D,
     background_04: Texture2D,
+    decorations: Texture2D,
 }
 
 pub const HIT_FX: &'static str = r#"{"local_coords":false,"emission_shape":{"Point":[]},"one_shot":true,"lifetime":0.2,"lifetime_randomness":0,"explosiveness":0.65,"amount":41,"shape":{"Circle":{"subdivisions":10}},"emitting":false,"initial_direction":{"x":0,"y":-1},"initial_direction_spread":6.2831855,"initial_velocity":73.9,"initial_velocity_randomness":0.2,"linear_accel":0,"size":5.6000004,"size_randomness":0.4,"blend_mode":{"Alpha":[]},"colors_curve":{"start":{"r":0.8200004,"g":1,"b":0.31818175,"a":1},"mid":{"r":0.71000004,"g":0.36210018,"b":0,"a":1},"end":{"r":0.02,"g":0,"b":0.000000007152557,"a":1}},"gravity":{"x":0,"y":0},"post_processing":{}}
@@ -95,8 +99,16 @@ impl Resources {
         let tileset = load_texture("assets/tileset.png").await;
         set_texture_filter(tileset, FilterMode::Nearest);
 
+        let decorations = load_texture("assets/decorations1.png").await;
+        set_texture_filter(decorations, FilterMode::Nearest);
+
         let tiled_map_json = load_string("assets/map.json").await.unwrap();
-        let tiled_map = tiled::load_map(&tiled_map_json, &[("tileset.png", tileset)], &[]).unwrap();
+        let tiled_map = tiled::load_map(
+            &tiled_map_json,
+            &[("tileset.png", tileset), ("decorations1.png", decorations)],
+            &[],
+        )
+        .unwrap();
 
         let mut static_colliders = vec![];
         for (_x, _y, tile) in tiled_map.tiles("main layer", None) {
@@ -122,6 +134,9 @@ impl Resources {
         let gun = load_texture("assets/Whale/Gun(92x32).png").await;
         set_texture_filter(gun, FilterMode::Nearest);
 
+        let sword = load_texture("assets/Whale/Sword(65x93).png").await;
+        set_texture_filter(sword, FilterMode::Nearest);
+
         let background_01 = load_texture("assets/Background/01.png").await;
         set_texture_filter(background_01, FilterMode::Nearest);
 
@@ -142,10 +157,12 @@ impl Resources {
             collision_world,
             whale,
             gun,
+            sword,
             background_01,
             background_02,
             background_03,
             background_04,
+            decorations,
         }
     }
 }
@@ -219,6 +236,14 @@ async fn network_game(game_type: GameType, network_id: String) {
     storage::store(resources);
 
     scene::add_node(LevelBackground::new());
+
+    for object in &storage::get::<Resources>().unwrap().tiled_map.layers["decorations"].objects {
+        scene::add_node(Decoration::new(
+            vec2(object.world_x, object.world_y),
+            object.gid.unwrap(),
+        ));
+    }
+
     let player = scene::add_node(Player::new(game_type == GameType::Deathmatch));
 
     scene::add_node(Bullets::new(player));

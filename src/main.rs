@@ -16,28 +16,14 @@ mod credentials {
     include!(concat!(env!("OUT_DIR"), "/nakama_credentials.rs"));
 }
 
-mod bullets;
-mod camera;
-mod decoration;
-mod global_events;
-mod gui;
-mod level_background;
-mod net_syncronizer;
-mod pickup;
-mod player;
-mod remote_player;
+mod nodes;
 
-use bullets::Bullets;
+mod camera;
+mod gui;
+
 use camera::Camera;
-use decoration::Decoration;
-use global_events::GlobalEvents;
 use gui::Scene;
-use level_background::LevelBackground;
 use nakama::ApiClient;
-use net_syncronizer::NetSyncronizer;
-use pickup::Pickup;
-use player::Player;
-use remote_player::RemotePlayer;
 
 pub mod consts {
     pub const GRAVITY: f32 = 900.0;
@@ -231,6 +217,8 @@ async fn join_quick_match() {
 }
 
 async fn network_game(game_type: GameType, network_id: String) {
+    use nodes::{Bullets, Decoration, GlobalEvents, LevelBackground, NetSyncronizer, Player};
+
     let resources = Resources::new().await;
 
     let w = resources.tiled_map.raw_tiled_map.tilewidth * resources.tiled_map.raw_tiled_map.width;

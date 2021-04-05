@@ -6,7 +6,10 @@ use macroquad::{
     prelude::*,
 };
 
-use crate::{pickup::ItemType, NetSyncronizer, Pickup, Player, RemotePlayer, Resources};
+use crate::{
+    nodes::{pickup::ItemType, NetSyncronizer, Pickup, Player, RemotePlayer},
+    Resources,
+};
 
 pub struct GlobalEvents {
     last_spawn_time: f64,

@@ -3,7 +3,11 @@ use macroquad::{
     prelude::*,
 };
 
-use crate::{consts, Player, RemotePlayer, Resources};
+use crate::{
+    consts,
+    nodes::{Player, RemotePlayer},
+    Resources,
+};
 
 struct Bullet {
     pos: Vec2,

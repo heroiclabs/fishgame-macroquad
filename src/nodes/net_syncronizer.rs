@@ -13,8 +13,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     consts,
     nakama::{self, ApiClient},
-    pickup::ItemType,
-    GameType, Pickup, Player, RemotePlayer, Resources,
+    nodes::{pickup::ItemType, Pickup, Player, RemotePlayer},
+    GameType, Resources,
 };
 
 struct NetworkCache {

@@ -8,8 +8,10 @@ use macroquad::{
 };
 
 use crate::{
-    pickup::ItemType,
-    player::{Fish, Weapon},
+    nodes::{
+        pickup::ItemType,
+        player::{Fish, Weapon},
+    },
     Resources,
 };
 
@@ -76,7 +78,7 @@ impl RemotePlayer {
     pub fn shoot(&mut self, handle: Handle<Self>) {
         match self.fish.weapon {
             Some(Weapon::Gun { .. }) => {
-                let mut bullets = scene::find_node_by_type::<crate::Bullets>().unwrap();
+                let mut bullets = scene::find_node_by_type::<crate::nodes::Bullets>().unwrap();
                 bullets.spawn_bullet(self.pos(), self.fish.facing());
             }
             Some(Weapon::Sword) => {

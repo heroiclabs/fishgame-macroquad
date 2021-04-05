@@ -12,8 +12,11 @@ use macroquad::{
 };
 use physics_platformer::Actor;
 
-use crate::{consts, pickup::ItemType, Pickup, Resources};
-use crate::nakama::ApiClient;
+use crate::{
+    consts,
+    nodes::{pickup::ItemType, Pickup},
+    Resources,
+};
 
 #[derive(Default, Debug, Clone)]
 pub struct Input {
@@ -433,10 +436,10 @@ impl Player {
 
                 node.fish.gun_fx = true;
                 let mut net_syncronizer =
-                    scene::find_node_by_type::<crate::NetSyncronizer>().unwrap();
+                    scene::find_node_by_type::<crate::nodes::NetSyncronizer>().unwrap();
                 net_syncronizer.shoot();
 
-                let mut bullets = scene::find_node_by_type::<crate::Bullets>().unwrap();
+                let mut bullets = scene::find_node_by_type::<crate::nodes::Bullets>().unwrap();
                 bullets.spawn_bullet(node.fish.pos, node.fish.facing);
                 node.fish.speed.x = -consts::GUN_THROWBACK * node.fish.facing_dir();
             }
@@ -492,13 +495,13 @@ impl Player {
                 node.fish.sword_sprite.set_animation(1);
 
                 let mut net_syncronizer =
-                    scene::find_node_by_type::<crate::NetSyncronizer>().unwrap();
+                    scene::find_node_by_type::<crate::nodes::NetSyncronizer>().unwrap();
                 net_syncronizer.shoot();
             }
 
             {
                 let node = &mut *scene::get_node(handle).unwrap();
-                let others = scene::find_nodes_by_type::<crate::RemotePlayer>();
+                let others = scene::find_nodes_by_type::<crate::nodes::RemotePlayer>();
                 let sword_hit_box = if node.fish.facing {
                     Rect::new(node.pos().x + 35., node.pos().y - 5., 40., 60.)
                 } else {
@@ -508,7 +511,8 @@ impl Player {
                 for player in others {
                     if Rect::new(player.pos().x, player.pos().y, 20., 64.).overlaps(&sword_hit_box)
                     {
-                        let mut net = scene::find_node_by_type::<crate::NetSyncronizer>().unwrap();
+                        let mut net =
+                            scene::find_node_by_type::<crate::nodes::NetSyncronizer>().unwrap();
                         net.kill(&player.id, !node.fish.facing);
                     }
                 }
@@ -652,7 +656,7 @@ impl scene::Node for Player {
     }
 
     fn update(mut node: RefMut<Self>) {
-        let game_started = scene::find_node_by_type::<crate::NetSyncronizer>()
+        let game_started = scene::find_node_by_type::<crate::nodes::NetSyncronizer>()
             .unwrap()
             .game_started;
 
@@ -668,7 +672,7 @@ impl scene::Node for Player {
 
         // win condition
         if node.deathmatch == false && game_started {
-            let others = scene::find_nodes_by_type::<crate::RemotePlayer>();
+            let others = scene::find_nodes_by_type::<crate::nodes::RemotePlayer>();
             let alive_enemies = others.filter(|player| player.dead == false).count();
 
             if node.fish.dead {

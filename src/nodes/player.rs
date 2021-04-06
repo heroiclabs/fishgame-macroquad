@@ -4,7 +4,7 @@ use macroquad::{
         animation::{AnimatedSprite, Animation},
         collections::storage,
         coroutines::{start_coroutine, wait_seconds, Coroutine},
-        scene::{self, RefMut},
+        scene::{self, Handle, RefMut},
         state_machine::{State, StateMachine},
     },
     prelude::*,
@@ -14,7 +14,7 @@ use physics_platformer::Actor;
 
 use crate::{
     consts,
-    nodes::{pickup::ItemType, Pickup},
+    nodes::{pickup::ItemType, Nakama, NakamaRealtimeGame, Pickup},
     Resources,
 };
 
@@ -275,7 +275,9 @@ pub struct Player {
     pub want_quit: bool,
     jump_grace_timer: f32,
     state_machine: StateMachine<RefMut<Player>>,
-    leaderboard_written: bool
+    leaderboard_written: bool,
+    nakama: Handle<Nakama>,
+    nakama_realtime: Handle<NakamaRealtimeGame>,
 }
 
 impl Player {
@@ -285,7 +287,11 @@ impl Player {
     const ST_SWORD_SHOOT: usize = 3;
     const ST_AFTERMATCH: usize = 4;
 
-    pub fn new(deathmatch: bool) -> Player {
+    pub fn new(
+        deathmatch: bool,
+        nakama: Handle<Nakama>,
+        nakama_realtime: Handle<NakamaRealtimeGame>,
+    ) -> Player {
         let spawner_pos = {
             let resources = storage::get_mut::<Resources>().unwrap();
             let objects = &resources.tiled_map.layers["logic"].objects;
@@ -326,6 +332,8 @@ impl Player {
             jump_grace_timer: 0.,
             state_machine,
             leaderboard_written: false,
+            nakama,
+            nakama_realtime,
         }
     }
 
@@ -435,9 +443,8 @@ impl Player {
                 let mut node = &mut *scene::get_node(handle).unwrap();
 
                 node.fish.gun_fx = true;
-                let mut net_syncronizer =
-                    scene::find_node_by_type::<crate::nodes::NetSyncronizer>().unwrap();
-                net_syncronizer.shoot();
+                let mut nakama = scene::get_node(node.nakama_realtime).unwrap();
+                nakama.shoot();
 
                 let mut bullets = scene::find_node_by_type::<crate::nodes::Bullets>().unwrap();
                 bullets.spawn_bullet(node.fish.pos, node.fish.facing);
@@ -494,9 +501,8 @@ impl Player {
                 let node = &mut *scene::get_node(handle).unwrap();
                 node.fish.sword_sprite.set_animation(1);
 
-                let mut net_syncronizer =
-                    scene::find_node_by_type::<crate::nodes::NetSyncronizer>().unwrap();
-                net_syncronizer.shoot();
+                let mut nakama = scene::get_node(node.nakama_realtime).unwrap();
+                nakama.shoot();
             }
 
             {
@@ -511,8 +517,7 @@ impl Player {
                 for player in others {
                     if Rect::new(player.pos().x, player.pos().y, 20., 64.).overlaps(&sword_hit_box)
                     {
-                        let mut net =
-                            scene::find_node_by_type::<crate::nodes::NetSyncronizer>().unwrap();
+                        let mut net = scene::get_node(node.nakama_realtime).unwrap();
                         net.kill(&player.id, !node.fish.facing);
                     }
                 }
@@ -545,7 +550,7 @@ impl Player {
 
     fn update_aftermatch(node: &mut RefMut<Player>, _dt: f32) {
         let resources = storage::get::<crate::gui::GuiResources>().unwrap();
-        let mut nakama = storage::get_mut::<ApiClient>().unwrap();
+        let nakama = &mut scene::get_node(node.nakama).unwrap().api_client;
 
         node.fish.speed.x = 0.0;
 
@@ -656,9 +661,9 @@ impl scene::Node for Player {
     }
 
     fn update(mut node: RefMut<Self>) {
-        let game_started = scene::find_node_by_type::<crate::nodes::NetSyncronizer>()
+        let game_started = scene::find_node_by_type::<crate::nodes::NakamaRealtimeGame>()
             .unwrap()
-            .game_started;
+            .game_started();
 
         if game_started {
             node.fish.input.jump = is_key_pressed(KeyCode::Space)

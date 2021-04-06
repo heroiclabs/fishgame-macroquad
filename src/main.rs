@@ -4,8 +4,11 @@ use macroquad_particles as particles;
 use macroquad_tiled as tiled;
 
 use macroquad::{
-    experimental::{collections::storage, coroutines::start_coroutine, scene},
-    telemetry, ui,
+    experimental::{
+        collections::storage,
+        coroutines::start_coroutine,
+        scene::{self, Handle},
+    }, ui,
 };
 use nanoserde::DeJson;
 
@@ -18,12 +21,9 @@ mod credentials {
 
 mod nodes;
 
-mod camera;
 mod gui;
 
-use camera::Camera;
 use gui::Scene;
-use nakama::ApiClient;
 
 pub mod consts {
     pub const GRAVITY: f32 = 900.0;
@@ -34,13 +34,6 @@ pub mod consts {
     pub const JUMP_GRACE_TIME: f32 = 0.15;
     pub const NETWORK_FPS: f32 = 15.0;
     pub const GUN_THROWBACK: f32 = 700.0;
-}
-
-pub mod nakama {
-    pub use nakama_rs::{
-        api_client::{ApiClient, Event},
-        matchmaker,
-    };
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -156,14 +149,16 @@ impl Resources {
     }
 }
 
-async fn join_quick_match() {
+async fn join_quick_match(nakama: Handle<nodes::Nakama>) {
     let authentication = start_coroutine(async move {
         {
-            let mut nakama = storage::get_mut::<ApiClient>().unwrap();
-            nakama.authenticate("super@heroes.com", "batsignal");
+            let mut nakama = scene::get_node(nakama).unwrap();
+            nakama
+                .api_client
+                .authenticate("super@heroes.com", "batsignal");
         }
 
-        while storage::get::<ApiClient>().unwrap().authenticated() == false {
+        while scene::get_node(nakama).unwrap().api_client.authenticated() == false {
             next_frame().await;
         }
     });
@@ -187,15 +182,14 @@ async fn join_quick_match() {
     warn!("authenticated!");
 
     {
-        let mut nakama = storage::get_mut::<ApiClient>().unwrap();
-
-        nakama.rpc(
+        let api_client = &mut scene::get_node(nakama).unwrap().api_client;
+        api_client.rpc(
             "rpc_macroquad_find_match",
             "\"{\\\"kind\\\":\\\"public\\\",\\\"engine\\\":\\\"macroquad\\\"}\"",
         );
     }
     let response = loop {
-        if let Some(response) = storage::get::<ApiClient>().unwrap().rpc_response() {
+        if let Some(response) = scene::get_node(nakama).unwrap().api_client.rpc_response() {
             break response;
         }
         next_frame().await;
@@ -207,17 +201,26 @@ async fn join_quick_match() {
         match_id: String,
     }
     let response: Response = DeJson::deserialize_json(&response).unwrap();
-    storage::get_mut::<ApiClient>()
+    scene::get_node(nakama)
         .unwrap()
+        .api_client
         .socket_join_match_by_id(&response.match_id);
 
-    while storage::get::<ApiClient>().unwrap().session_id.is_none() {
+    while scene::get_node(nakama)
+        .unwrap()
+        .api_client
+        .session_id
+        .is_none()
+    {
         next_frame().await;
     }
 }
 
-async fn network_game(game_type: GameType, network_id: String) {
-    use nodes::{Bullets, Decoration, GlobalEvents, LevelBackground, NetSyncronizer, Player};
+async fn network_game(nakama: Handle<nodes::Nakama>, game_type: GameType, network_id: String) {
+    use nodes::{
+        Bullets, Camera, Decoration, Fxses, GlobalEvents, LevelBackground,
+        NakamaRealtimeGame, Player,
+    };
 
     let resources = Resources::new().await;
 
@@ -226,7 +229,7 @@ async fn network_game(game_type: GameType, network_id: String) {
 
     storage::store(resources);
 
-    scene::add_node(LevelBackground::new());
+    let level_background = scene::add_node(LevelBackground::new());
 
     for object in &storage::get::<Resources>().unwrap().tiled_map.layers["decorations"].objects {
         scene::add_node(Decoration::new(
@@ -235,37 +238,27 @@ async fn network_game(game_type: GameType, network_id: String) {
         ));
     }
 
-    let player = scene::add_node(Player::new(game_type == GameType::Deathmatch));
+    let nakama_realtime = scene::add_node(NakamaRealtimeGame::new(nakama, game_type, network_id));
+
+    let player = scene::add_node(Player::new(
+        game_type == GameType::Deathmatch,
+        nakama,
+        nakama_realtime,
+    ));
 
     scene::add_node(Bullets::new(player));
-    let net_syncronizer = scene::add_node(NetSyncronizer::new(network_id, game_type));
-    scene::add_node(GlobalEvents::new(player, net_syncronizer));
+    scene::add_node(GlobalEvents::new(player, nakama_realtime));
 
-    let mut camera = Camera::new(Rect::new(0.0, 0.0, w as f32, h as f32), 400.0);
+    let camera = scene::add_node(Camera::new(
+        Rect::new(0.0, 0.0, w as f32, h as f32),
+        400.0,
+        player,
+    ));
+    scene::get_node(level_background).unwrap().camera = camera;
+    scene::add_node(Fxses { camera });
 
     loop {
         clear_background(BLACK);
-
-        let pos = { scene::get_node::<Player>(player).unwrap().pos() };
-
-        let cam = camera.update(pos);
-        set_camera(cam);
-
-        storage::store(cam.target);
-
-        scene::update();
-
-        {
-            let _z = telemetry::ZoneGuard::new("draw particles");
-
-            let mut resources = storage::get_mut::<Resources>().unwrap();
-
-            resources.hit_fxses.draw();
-            resources.explosion_fxses.draw();
-            resources.disarm_fxses.draw();
-        }
-
-        set_default_camera();
 
         {
             let resources = storage::get_mut::<gui::GuiResources>().unwrap();
@@ -289,19 +282,9 @@ async fn network_game(game_type: GameType, network_id: String) {
     }
 }
 
-fn start_nakama_tick_loop() {
-    let tick = async move {
-        loop {
-            storage::get_mut::<ApiClient>().unwrap().tick();
-            next_frame().await;
-        }
-    };
-    start_coroutine(tick);
-}
-
 #[macroquad::main("Fishgame")]
 async fn main() {
-    storage::store(ApiClient::new(
+    let nakama = scene::add_node(nodes::Nakama::new(
         credentials::NAKAMA_KEY,
         credentials::NAKAMA_SERVER,
         credentials::NAKAMA_PORT,
@@ -311,8 +294,6 @@ async fn main() {
     let gui_resources = gui::GuiResources::new();
     storage::store(gui_resources);
 
-    start_nakama_tick_loop();
-
     //let mut next_scene = gui::matchmaking_lobby().await;
     let mut next_scene = gui::main_menu().await;
     loop {
@@ -321,52 +302,55 @@ async fn main() {
                 next_scene = gui::main_menu().await;
             }
             Scene::QuickGame => {
-                join_quick_match().await;
-                let network_id = storage::get::<ApiClient>()
+                join_quick_match(nakama).await;
+                let network_id = scene::get_node(nakama)
                     .unwrap()
+                    .api_client
                     .session_id
                     .clone()
                     .unwrap();
-                network_game(GameType::Deathmatch, network_id).await;
+
+                network_game(nakama, GameType::Deathmatch, network_id).await;
+
                 let match_leave = {
-                    let mut nakama = storage::get_mut::<ApiClient>().unwrap();
+                    let nakama = &mut scene::get_node(nakama).unwrap().api_client;
                     nakama.socket_leave_match()
                 };
-                while storage::get::<ApiClient>()
+                while scene::get_node(nakama)
                     .unwrap()
+                    .api_client
                     .socket_response(match_leave)
                     .is_none()
                 {
                     next_frame().await;
                 }
-                storage::get_mut::<ApiClient>().unwrap().logout();
+                scene::get_node(nakama).unwrap().api_client.logout();
 
                 scene::clear();
-                start_nakama_tick_loop();
 
                 next_scene = Scene::MainMenu;
             }
             Scene::MatchmakingGame { private } => {
-                let network_id = storage::get::<ApiClient>()
+                let network_id = scene::get_node(nakama)
                     .unwrap()
+                    .api_client
                     .session_id
                     .clone()
                     .unwrap();
 
-                network_game(GameType::LastFishStanding { private }, network_id).await;
+                network_game(nakama, GameType::LastFishStanding { private }, network_id).await;
                 scene::clear();
-                start_nakama_tick_loop();
 
                 next_scene = Scene::MatchmakingLobby;
             }
             Scene::MatchmakingLobby => {
-                next_scene = gui::matchmaking_lobby().await;
+                next_scene = gui::matchmaking_lobby(nakama).await;
             }
             Scene::Login => {
-                next_scene = gui::authentication().await;
+                next_scene = gui::authentication(nakama).await;
             }
             Scene::WaitingForMatchmaking { private } => {
-                next_scene = gui::waiting_for_matchmaking(private).await;
+                next_scene = gui::waitscreen(nakama, private).await;
             }
             Scene::Credits => {
                 unimplemented!()

@@ -2,7 +2,7 @@ use macroquad::{
     experimental::{
         collections::storage,
         coroutines::{start_coroutine, wait_seconds},
-        scene::{self, Handle, RefMut},
+        scene::{self, Handle, Node, RefMut},
     },
     prelude::*,
     ui::{self, hash, root_ui, widgets},
@@ -10,10 +10,11 @@ use macroquad::{
 use nanoserde::DeBin;
 use std::collections::{BTreeMap, BTreeSet};
 
+use nakama_rs::api_client::Event;
+
 use crate::{
     consts,
-    nakama::{self, ApiClient},
-    nodes::{pickup::ItemType, Pickup, Player, RemotePlayer},
+    nodes::{pickup::ItemType, Nakama, Pickup, Player, RemotePlayer},
     GameType, Resources,
 };
 
@@ -64,8 +65,8 @@ mod message {
     use nanoserde::{DeBin, SerBin};
 
     #[derive(Debug, Clone, SerBin, DeBin, PartialEq)]
-    pub struct Move(pub [u8; 4]);
-    impl Move {
+    pub struct State(pub [u8; 4]);
+    impl State {
         pub const OPCODE: i32 = 1;
     }
 
@@ -116,27 +117,35 @@ mod message {
     }
 }
 
-pub struct NetSyncronizer {
-    network_cache: NetworkCache,
+/// Node with per-session data, responsible for syncronisation
+/// game state through nakama's socket connection
+pub struct NakamaRealtimeGame {
+    pub game_type: GameType,
+    pub game_started: bool,
+
     network_id: String,
-    others: BTreeMap<String, Handle<RemotePlayer>>,
+    network_cache: NetworkCache,
+    remote_players: BTreeMap<String, Handle<RemotePlayer>>,
     pickups: BTreeMap<usize, Handle<Pickup>>,
     network_ids: BTreeSet<String>,
     shoot_pending: bool,
     ready: bool,
-    pub game_type: GameType,
-    pub game_started: bool,
+    nakama: Handle<Nakama>,
 }
 
-impl NetSyncronizer {
-    pub(crate) fn new(network_id: String, game_type: GameType) -> NetSyncronizer {
-        NetSyncronizer {
+impl NakamaRealtimeGame {
+    pub fn new(
+        nakama: Handle<Nakama>,
+        game_type: GameType,
+        network_id: String,
+    ) -> NakamaRealtimeGame {
+        NakamaRealtimeGame {
             game_type,
             network_cache: NetworkCache {
                 sent_position: [0; 4],
                 last_send_time: 0.0,
             },
-            others: BTreeMap::new(),
+            remote_players: BTreeMap::new(),
             network_ids: {
                 let mut network_ids = BTreeSet::new();
                 network_ids.insert(network_id.clone());
@@ -147,16 +156,12 @@ impl NetSyncronizer {
             shoot_pending: false,
             ready: false,
             game_started: game_type == GameType::Deathmatch,
+            nakama,
         }
     }
 
-    pub fn is_host(&self) -> bool {
-        // no other players connected
-        if self.others.len() == 0 {
-            return true;
-        }
-
-        self.network_id < *self.others.keys().nth(0).unwrap()
+    pub fn game_started(&self) -> bool {
+        self.game_started
     }
 
     pub fn shoot(&mut self) {
@@ -164,9 +169,8 @@ impl NetSyncronizer {
     }
 
     pub fn spawn_item(&mut self, id: usize, pos: Vec2, item_type: ItemType) {
-        let mut nakama = storage::get_mut::<nakama::ApiClient>().unwrap();
-
-        nakama.socket_send(
+        let mut nakama = scene::get_node(self.nakama).unwrap();
+        nakama.api_client.socket_send(
             message::SpawnItem::OPCODE,
             &message::SpawnItem {
                 id: id as _,
@@ -178,18 +182,16 @@ impl NetSyncronizer {
     }
 
     pub fn delete_item(&mut self, id: usize) {
-        let mut nakama = storage::get_mut::<nakama::ApiClient>().unwrap();
-
-        nakama.socket_send(
+        let mut nakama = scene::get_node(self.nakama).unwrap();
+        nakama.api_client.socket_send(
             message::DeleteItem::OPCODE,
             &message::DeleteItem { id: id as _ },
         );
     }
 
     pub fn kill(&mut self, target: &str, direction: bool) {
-        let mut nakama = storage::get_mut::<nakama::ApiClient>().unwrap();
-
-        nakama.socket_send(
+        let mut nakama = scene::get_node(self.nakama).unwrap();
+        nakama.api_client.socket_send(
             message::Damage::OPCODE,
             &message::Damage {
                 target: target.to_string(),
@@ -197,16 +199,28 @@ impl NetSyncronizer {
             },
         );
     }
+
+    pub fn is_host(&self) -> bool {
+        // no other players connected
+        if self.remote_players.len() == 0 {
+            return true;
+        }
+
+        self.network_id < *self.remote_players.keys().nth(0).unwrap()
+    }
 }
 
-impl scene::Node for NetSyncronizer {
-    fn ready(_: RefMut<Self>) {
+impl Node for NakamaRealtimeGame {
+    fn ready(node: RefMut<Self>) {
+        let nakama = node.nakama;
         let idle = async move {
             loop {
                 {
-                    let mut nakama = storage::get_mut::<ApiClient>().unwrap();
+                    let mut nakama = scene::get_node(nakama).unwrap();
 
-                    nakama.socket_send(message::Idle::OPCODE, &message::Idle);
+                    nakama
+                        .api_client
+                        .socket_send(message::Idle::OPCODE, &message::Idle);
                 }
                 wait_seconds(1.0).await;
             }
@@ -221,7 +235,7 @@ impl scene::Node for NetSyncronizer {
 
         if node.game_type != GameType::Deathmatch && node.game_started == false {
             let resources = storage::get::<crate::gui::GuiResources>().unwrap();
-            let mut nakama = storage::get_mut::<ApiClient>().unwrap();
+            let nakama = &mut scene::get_node(node.nakama).unwrap().api_client;
 
             ui::root_ui().push_skin(&resources.login_skin);
             ui::root_ui().window(
@@ -240,7 +254,7 @@ impl scene::Node for NetSyncronizer {
                             .label("Match ID")
                             .ui(ui, &mut match_id);
                     }
-                    for player in node.others.values() {
+                    for player in node.remote_players.values() {
                         let player = scene::get_node(*player).unwrap();
                         ui.label(None, &format!("{}: ", player.username));
                         ui.same_line(300.0);
@@ -252,14 +266,15 @@ impl scene::Node for NetSyncronizer {
                     }
 
                     let everyone_ready = {
-                        let others = scene::find_nodes_by_type::<RemotePlayer>();
-                        let (ready, notready) = others.fold((0, 0), |(ready, notready), player| {
-                            if player.ready {
-                                (ready + 1, notready)
-                            } else {
-                                (ready, notready + 1)
-                            }
-                        });
+                        let remote_players = scene::find_nodes_by_type::<RemotePlayer>();
+                        let (ready, notready) =
+                            remote_players.fold((0, 0), |(ready, notready), player| {
+                                if player.ready {
+                                    (ready + 1, notready)
+                                } else {
+                                    (ready, notready + 1)
+                                }
+                            });
 
                         ready != 0 && notready == 0
                     } && node.ready;
@@ -287,6 +302,8 @@ impl scene::Node for NetSyncronizer {
     }
 
     fn update(mut node: RefMut<Self>) {
+        let api_client = &mut scene::get_node(node.nakama).unwrap().api_client;
+
         {
             let shooting = node.shoot_pending;
             node.shoot_pending = false;
@@ -314,23 +331,18 @@ impl scene::Node for NetSyncronizer {
 
                 if node.network_cache.sent_position != state.0 {
                     node.network_cache.sent_position = state.0;
-                    let mut nakama = storage::get_mut::<ApiClient>().unwrap();
 
-                    nakama.socket_send(message::Move::OPCODE, &message::Move(state.0));
+                    api_client.socket_send(message::State::OPCODE, &message::State(state.0));
                 }
             }
         }
 
-        while let Some(event) = {
-            let mut nakama = storage::get_mut::<ApiClient>().unwrap();
-
-            nakama.try_recv()
-        } {
+        while let Some(event) = api_client.try_recv() {
             match event {
-                nakama::Event::Presence { joins, leaves } => {
+                Event::Presence { joins, leaves } => {
                     for leaver in leaves {
                         let leaver = leaver.session_id;
-                        if let Some(leaver) = node.others.remove(&leaver) {
+                        if let Some(leaver) = node.remote_players.remove(&leaver) {
                             let mut resources = storage::get_mut::<Resources>().unwrap();
 
                             let leaver = scene::get_node::<RemotePlayer>(leaver).unwrap();
@@ -353,25 +365,25 @@ impl scene::Node for NetSyncronizer {
 
                         node.network_cache.flush();
                         node.network_ids.insert(joined.clone());
-                        if node.others.contains_key(&joined) == false {
-                            node.others.insert(
+                        if node.remote_players.contains_key(&joined) == false {
+                            node.remote_players.insert(
                                 joined.clone(),
                                 scene::add_node(RemotePlayer::new(&username, &joined)),
                             );
                         }
                     }
                 }
-                nakama::Event::MatchData {
+                Event::MatchData {
                     user_id,
                     opcode,
                     data,
                 } => {
-                    if let Some(other) = node.others.get(&user_id) {
+                    if let Some(other) = node.remote_players.get(&user_id) {
                         let mut other = scene::get_node(*other).unwrap();
 
                         match opcode as i32 {
-                            message::Move::OPCODE => {
-                                let message::Move(data) = DeBin::deserialize_bin(&data).unwrap();
+                            message::State::OPCODE => {
+                                let message::State(data) = DeBin::deserialize_bin(&data).unwrap();
                                 let state = PlayerStateBits(data);
                                 let pos = vec2(state.x() as f32, state.y() as f32);
 

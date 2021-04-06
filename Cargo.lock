@@ -305,7 +305,6 @@ dependencies = [
 [[package]]
 name = "macroquad"
 version = "0.3.0-alpha.17"
-source = "git+https://github.com/not-fl3/macroquad.git#8b3e25762d8f83e0a38dfa3ae944f50f594117df"
 dependencies = [
  "bumpalo",
  "fontdue",
@@ -319,7 +318,6 @@ dependencies = [
 [[package]]
 name = "macroquad-particles"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#8b3e25762d8f83e0a38dfa3ae944f50f594117df"
 dependencies = [
  "macroquad",
  "nanoserde",
@@ -337,7 +335,6 @@ dependencies = [
 [[package]]
 name = "macroquad_macro"
 version = "0.1.2"
-source = "git+https://github.com/not-fl3/macroquad.git#8b3e25762d8f83e0a38dfa3ae944f50f594117df"
 
 [[package]]
 name = "matches"

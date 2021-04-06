@@ -7,7 +7,7 @@ use macroquad::{
 };
 
 use crate::{
-    nodes::{pickup::ItemType, NetSyncronizer, Pickup, Player, RemotePlayer},
+    nodes::{pickup::ItemType, NakamaRealtimeGame, Pickup, Player, RemotePlayer},
     Resources,
 };
 
@@ -17,16 +17,16 @@ pub struct GlobalEvents {
     spawned_items: Vec<(usize, Handle<Pickup>)>,
 
     uid: usize,
-    net_syncronizer: Handle<NetSyncronizer>,
+    nakama: Handle<NakamaRealtimeGame>,
 }
 
 impl GlobalEvents {
     const SPAWN_INTERVAL: f32 = 2.0;
 
-    pub fn new(player: Handle<Player>, net_syncronizer: Handle<NetSyncronizer>) -> GlobalEvents {
+    pub fn new(player: Handle<Player>, nakama: Handle<NakamaRealtimeGame>) -> GlobalEvents {
         GlobalEvents {
             _player: player,
-            net_syncronizer,
+            nakama,
             last_spawn_time: 0.0,
             uid: 0,
             spawned_items: vec![],
@@ -36,9 +36,9 @@ impl GlobalEvents {
 
 impl scene::Node for GlobalEvents {
     fn update(mut node: RefMut<Self>) {
-        let mut net_syncronizer = scene::get_node(node.net_syncronizer).unwrap();
+        let mut nakama = scene::get_node(node.nakama).unwrap();
 
-        if net_syncronizer.is_host() == false || net_syncronizer.game_started == false {
+        if nakama.is_host() == false || nakama.game_started() == false {
             return;
         }
 
@@ -83,7 +83,7 @@ impl scene::Node for GlobalEvents {
             let item_id = node.uid;
             node.spawned_items
                 .push((item_id, scene::add_node(Pickup::new(pos, item_type))));
-            net_syncronizer.spawn_item(item_id, pos, item_type);
+            nakama.spawn_item(item_id, pos, item_type);
 
             node.uid += 1;
         }
@@ -94,7 +94,7 @@ impl scene::Node for GlobalEvents {
             let item = scene::get_node(*item_handle);
             // already destroyed itself.
             if item.is_none() {
-                net_syncronizer.delete_item(*id);
+                nakama.delete_item(*id);
                 return false;
             }
             let item = item.unwrap();
@@ -107,7 +107,7 @@ impl scene::Node for GlobalEvents {
 
             if other.is_some() {
                 item.delete();
-                net_syncronizer.delete_item(*id);
+                nakama.delete_item(*id);
                 return false;
             }
 

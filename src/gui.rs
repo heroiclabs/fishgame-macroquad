@@ -434,16 +434,19 @@ pub async fn matchmaking_lobby() -> Scene {
                     }
                     2 => {
                         if leaderboard_loaded == false {
-                            //nakama::load_leaderboard_records();
+                            nakama.list_leaderboard_records("fish_game_macroquad_wins");
                             leaderboard_loaded = true;
                         }
-                        // if let Some(records) = nakama::leaderboard_records() {
-                        //     for record in records {
-                        //         ui.label(None, &format!("{}", record.username));
-                        //         ui.same_line(300.0);
-                        //         ui.label(None, &format!("{}", record.score));
-                        //     }
-                        // }
+                        if let Some(leaderboard) = nakama.leaderboard_records("fish_game_macroquad_wins") {
+                            for record in &leaderboard.records {
+                                ui.label(None, &format!("{}", record.username));
+                                ui.same_line(300.0);
+                                ui.label(None, &format!("{}", record.score));
+                            }
+                        }
+                        if ui.button(None, "Add record") {
+                            nakama.write_leaderboard_record("fish_game_macroquad_wins", 1);
+                        }
                     }
                     _ => unreachable!(),
                 }

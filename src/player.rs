@@ -13,6 +13,7 @@ use macroquad::{
 use physics_platformer::Actor;
 
 use crate::{consts, pickup::ItemType, Pickup, Resources};
+use crate::nakama::ApiClient;
 
 #[derive(Default, Debug, Clone)]
 pub struct Input {
@@ -538,6 +539,7 @@ impl Player {
 
     fn update_aftermatch(node: &mut RefMut<Player>, _dt: f32) {
         let resources = storage::get::<crate::gui::GuiResources>().unwrap();
+        let mut nakama = storage::get_mut::<ApiClient>().unwrap();
 
         node.fish.speed.x = 0.0;
 
@@ -549,10 +551,10 @@ impl Player {
                 screen_height() / 2. - 200. / 2.,
             ),
             Vec2::new(500., 200.),
-            |ui| {
+            move |ui| {
                 if node.win {
                     ui.label(vec2(190., 30.), "You win!");
-                    //crate::nakama::add_leaderboard_win();
+                    nakama.write_leaderboard_record("fish_game_macroquad_wins", 1);
                 } else {
                     ui.label(vec2(190., 30.), "You lost!");
                 }

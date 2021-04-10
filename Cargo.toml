@@ -14,6 +14,7 @@ macroquad-particles = { git = "https://github.com/not-fl3/macroquad.git", featur
 bitfield = "0.13"
 nakama-rs = { git = "https://github.com/not-fl3/nakama-rs.git" }
 base64 = "0.13"
+wasm_plugin_host = "0.1.2"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 sapp-jsutils = "0.1"

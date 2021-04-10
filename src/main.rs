@@ -26,6 +26,8 @@ mod net_syncronizer;
 mod pickup;
 mod player;
 mod remote_player;
+mod plugin;
+mod item;
 
 use bullets::Bullets;
 use camera::Camera;

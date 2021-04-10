@@ -6,7 +6,7 @@ use macroquad::{
     prelude::*,
 };
 
-use crate::{pickup::ItemType, NetSyncronizer, Pickup, Player, RemotePlayer, Resources};
+use crate::{item::{ItemType, ItemImplementationRegistry}, NetSyncronizer, Pickup, Player, RemotePlayer, Resources};
 
 pub struct GlobalEvents {
     last_spawn_time: f64,
@@ -72,11 +72,10 @@ impl scene::Node for GlobalEvents {
 
             node.last_spawn_time = get_time();
 
-            let item_type = if rand::gen_range(0, 2) == 0 {
-                ItemType::Gun
-            } else {
-                ItemType::Sword
-            };
+            let item_registry = storage::get::<ItemImplementationRegistry>().unwrap();
+            let item_types = item_registry.item_types();
+            let idx = rand::gen_range(0, item_types.len());
+            let item_type = item_types[idx];
             let item_id = node.uid;
             node.spawned_items
                 .push((item_id, scene::add_node(Pickup::new(pos, item_type))));

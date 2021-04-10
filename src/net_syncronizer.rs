@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     consts,
     nakama::{self, ApiClient},
-    pickup::ItemType,
+    item::ItemType,
     GameType, Pickup, Player, RemotePlayer, Resources,
 };
 
@@ -37,7 +37,7 @@ bitfield::bitfield! {
     y, set_y: 19, 10;
     facing, set_facing: 20;
     shooting, set_shooting: 21;
-    weapon, set_weapon: 30, 22;
+    u64, weapon, set_weapon: 30, 22;
     dead, set_dead: 31;
 }
 
@@ -83,7 +83,7 @@ mod message {
         pub id: u32,
         pub x: u16,
         pub y: u16,
-        pub item_type: u8,
+        pub item_type: u64,
     }
     impl SpawnItem {
         pub const OPCODE: i32 = 4;
@@ -172,7 +172,7 @@ impl NetSyncronizer {
                 id: id as _,
                 x: pos.x as _,
                 y: pos.y as _,
-                item_type: item_type as _,
+                item_type: item_type.into(),
             },
         );
     }
@@ -304,12 +304,7 @@ impl scene::Node for NetSyncronizer {
                 state.set_y(player.pos().y as u32);
                 state.set_facing(player.facing());
                 state.set_shooting(shooting);
-                let weapon = match player.weapon() {
-                    None => 0,
-                    Some(ItemType::Gun) => 1,
-                    Some(ItemType::Sword) => 2,
-                };
-                state.set_weapon(weapon);
+                state.set_weapon(player.weapon().map_or(0, |weapon| weapon.into()));
                 state.set_dead(player.is_dead());
 
                 if node.network_cache.sent_position != state.0 {
@@ -391,14 +386,10 @@ impl scene::Node for NetSyncronizer {
                                     resources.disarm_fxses.spawn(pos + vec2(16., 33.));
                                     other.disarm();
                                 }
-                                if other.weapon().map_or(0, |weapon| weapon as u32)
+                                if other.weapon().map_or(0, |weapon| weapon.into() )
                                     != state.weapon()
                                 {
-                                    match state.weapon() {
-                                        1 => other.pick_weapon(ItemType::Gun),
-                                        2 => other.pick_weapon(ItemType::Sword),
-                                        _ => unreachable!(),
-                                    }
+                                    other.pick_weapon(state.weapon().into());
                                 }
                                 if state.shooting() {
                                     let handle = other.handle();
@@ -430,11 +421,7 @@ impl scene::Node for NetSyncronizer {
 
                                 let new_node = scene::add_node(Pickup::new(
                                     pos,
-                                    match item_type {
-                                        x if x == ItemType::Sword as u8 => ItemType::Sword,
-                                        x if x == ItemType::Gun as u8 => ItemType::Gun,
-                                        _ => unreachable!(),
-                                    },
+                                    item_type.into()
                                 ));
                                 if let Some(pickup) = node.pickups.insert(id as _, new_node) {
                                     if let Some(node) = scene::get_node(pickup) {

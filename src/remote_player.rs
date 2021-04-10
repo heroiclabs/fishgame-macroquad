@@ -8,7 +8,7 @@ use macroquad::{
 };
 
 use crate::{
-    pickup::ItemType,
+    item::ItemType,
     player::{Fish, Weapon},
     Resources,
 };
@@ -48,11 +48,7 @@ impl RemotePlayer {
     }
 
     pub fn weapon(&self) -> Option<ItemType> {
-        match self.fish.weapon {
-            None => None,
-            Some(Weapon::Gun { .. }) => Some(ItemType::Gun),
-            Some(Weapon::Sword) => Some(ItemType::Sword),
-        }
+        self.fish.weapon.map(|weapon| weapon.item_type)
     }
 
     pub fn set_pos(&mut self, pos: Vec2) {
@@ -74,41 +70,7 @@ impl RemotePlayer {
     }
 
     pub fn shoot(&mut self, handle: Handle<Self>) {
-        match self.fish.weapon {
-            Some(Weapon::Gun { .. }) => {
-                let mut bullets = scene::find_node_by_type::<crate::Bullets>().unwrap();
-                bullets.spawn_bullet(self.pos(), self.fish.facing());
-            }
-            Some(Weapon::Sword) => {
-                let swing = async move {
-                    {
-                        if let Some(mut node) = scene::get_node(handle) {
-                            node.fish.sword_sprite.set_animation(1);
-                        }
-                    }
-
-                    for i in 0u32..3 {
-                        {
-                            if let Some(mut node) = scene::get_node(handle) {
-                                node.fish.sword_sprite.set_frame(i);
-                            }
-                        }
-
-                        wait_seconds(0.08).await;
-                    }
-
-                    {
-                        if let Some(mut node) = scene::get_node(handle) {
-                            node.fish.sword_sprite.set_animation(0);
-                        }
-                    }
-                };
-                start_coroutine(swing);
-            }
-            None => {
-                println!("well");
-            }
-        }
+        todo!("remote weapon handling");
     }
 }
 impl scene::Node for RemotePlayer {

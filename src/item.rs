@@ -4,10 +4,10 @@ use macroquad::{
     prelude::*,
     experimental::{
         animation::AnimatedSprite
-    }
+    },
 };
 
-use crate::plugin::ModId;
+use crate::plugin::{PluginId, ItemDescription};
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct ItemType(u64);
@@ -27,10 +27,30 @@ struct ItemImplementation {
     pub texture: Texture2D,
     pub sprite: AnimatedSprite,
     pub fx_sprite: AnimatedSprite,
-    implementing_mod: ModId,
+    implementing_plugin: PluginId,
 }
+
+impl ItemImplementation {
+    pub fn from_description(description: &ItemDescription, plugin: PluginId) -> Self {
+        let texture = load_texture_from_image(&description.image);
+        Self {
+            display_name: description.display_name,
+            texture,
+            sprite: description.sprite,
+            fx_sprite: description.fx_sprite,
+            implementing_plugin: plugin
+        }
+    }
+}
+
+#[derive(Default)]
 pub struct ItemImplementationRegistry(HashMap<ItemType, ItemImplementation>);
+
 impl ItemImplementationRegistry {
+    pub fn add(&mut self, description: &ItemDescription, implementing_plugin: PluginId) {
+        self.0.insert(description.item_type, ItemImplementation::from_description(description, implementing_plugin));
+    }
+
     pub fn get_implementation(&self, item_type: ItemType) -> Option<&ItemImplementation> {
         self.0.get(&item_type)
     }

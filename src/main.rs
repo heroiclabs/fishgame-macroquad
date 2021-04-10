@@ -40,6 +40,8 @@ use net_syncronizer::NetSyncronizer;
 use pickup::Pickup;
 use player::Player;
 use remote_player::RemotePlayer;
+use plugin::PluginRegistry;
+use item::ItemImplementationRegistry;
 
 pub mod consts {
     pub const GRAVITY: f32 = 900.0;
@@ -236,6 +238,11 @@ async fn network_game(game_type: GameType, network_id: String) {
     let h = resources.tiled_map.raw_tiled_map.tileheight * resources.tiled_map.raw_tiled_map.height;
 
     storage::store(resources);
+
+    let mut item_registry = ItemImplementationRegistry::default();
+    let plugin_registry = PluginRegistry::load("plugins/", &mut item_registry);
+    storage::store(item_registry);
+    storage::store(plugin_registry);
 
     scene::add_node(LevelBackground::new());
 

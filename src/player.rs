@@ -272,6 +272,7 @@ pub struct Player {
     pub want_quit: bool,
     jump_grace_timer: f32,
     state_machine: StateMachine<RefMut<Player>>,
+    leaderboard_written: bool
 }
 
 impl Player {
@@ -321,6 +322,7 @@ impl Player {
             want_quit: false,
             jump_grace_timer: 0.,
             state_machine,
+            leaderboard_written: false,
         }
     }
 
@@ -554,7 +556,10 @@ impl Player {
             move |ui| {
                 if node.win {
                     ui.label(vec2(190., 30.), "You win!");
-                    nakama.write_leaderboard_record("fish_game_macroquad_wins", 1);
+                    if !node.leaderboard_written {
+                        nakama.write_leaderboard_record("fish_game_macroquad_wins", 1);
+                        node.leaderboard_written = true;
+                    }
                 } else {
                     ui.label(vec2(190., 30.), "You lost!");
                 }

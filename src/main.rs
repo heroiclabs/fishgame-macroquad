@@ -51,7 +51,10 @@ pub mod consts {
 }
 
 pub mod nakama {
-    pub use nakama_rs::api_client::{ApiClient, Event};
+    pub use nakama_rs::{
+        api_client::{ApiClient, Event},
+        matchmaker,
+    };
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

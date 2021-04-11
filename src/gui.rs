@@ -8,7 +8,10 @@ use macroquad::{
     window::{clear_background, next_frame, screen_height, screen_width},
 };
 
-use crate::nakama::ApiClient;
+use crate::nakama::{
+    matchmaker::{Matchmaker, QueryItemBuilder},
+    ApiClient,
+};
 
 const WINDOW_WIDTH: f32 = 700.0;
 const WINDOW_HEIGHT: f32 = 300.0;
@@ -405,12 +408,19 @@ pub async fn matchmaking_lobby() -> Scene {
                             .ui(ui, &mut maximum_players);
 
                         if ui.button(None, "Start matchmaking") {
-                            nakama.socket_add_matchmaker(
-                                minimum_players.parse::<u32>().unwrap(),
-                                maximum_players.parse::<u32>().unwrap(),
-                                "+properties.engine:\\\"macroquad_matchmaking\\\"",
-                                "{\"engine\":\"macroquad_matchmaking\"}",
-                            );
+                            let mut matchmaker = Matchmaker::new();
+                            matchmaker
+                                .min(minimum_players.parse::<u32>().unwrap())
+                                .max(maximum_players.parse::<u32>().unwrap())
+                                .add_string_property("engine", "macroquad_matchmaking")
+                                .add_query_item(
+                                    &QueryItemBuilder::new("engine")
+                                        .required()
+                                        .term("macroquad_matchmaking")
+                                        .build(),
+                                );
+
+                            nakama.socket_add_matchmaker(&matchmaker);
 
                             next_scene = Some(Scene::WaitingForMatchmaking { private: false });
                         }

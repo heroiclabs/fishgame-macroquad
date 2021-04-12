@@ -59,12 +59,12 @@ pub async fn authentication(nakama: Handle<Nakama>) -> Scene {
                     if ui.button(None, "Login") {
                         nakama.api_client.authenticate(&email, &password);
                     }
-                    ui.push_skin(&resources.cheat_skin);
-                    if ui.button(None, "Fast cheating login") {
-                        email = "super@heroes.com".to_owned();
-                        password = "batsignal".to_owned();
-                    }
-                    ui.pop_skin();
+                    // ui.push_skin(&resources.cheat_skin);
+                    // if ui.button(None, "Fast cheating login") {
+                    //     email = "super@heroes.com".to_owned();
+                    //     password = "batsignal".to_owned();
+                    // }
+                    // ui.pop_skin();
                 });
                 ui.group(hash!(), vec2(WINDOW_WIDTH / 2. - 28., 170.), |ui| {
                     ui.label(None, "Create an account");

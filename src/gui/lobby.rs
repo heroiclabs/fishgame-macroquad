@@ -119,11 +119,13 @@ pub async fn matchmaking_lobby(nakama: Handle<Nakama>) -> Scene {
                                 ui.label(None, &format!("{}", record.score));
                             }
                         }
-                        if ui.button(None, "Add record") {
-                            nakama
-                                .api_client
-                                .write_leaderboard_record("fish_game_macroquad_wins", 1);
-                        }
+                        // ui.push_skin(&resources.cheat_skin);
+                        // if ui.button(None, "Add record") {
+                        //     nakama
+                        //         .api_client
+                        //         .write_leaderboard_record("fish_game_macroquad_wins", 1);
+                        // }
+                        // ui.pop_skin();
                     }
                     _ => unreachable!(),
                 }

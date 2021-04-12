@@ -19,15 +19,15 @@ base64 = "0.13"
 sapp-jsutils = "0.1"
 
 [patch.crates-io]
-#macroquad = { git = "https://github.com/not-fl3/macroquad.git" }
-macroquad = { path = "../macroquad" }
+macroquad = { git = "https://github.com/not-fl3/macroquad.git" }
+#macroquad = { path = "../macroquad" }
 
-[patch.'https://github.com/not-fl3/macroquad.git']
-macroquad = { path = "../macroquad" }
+#[patch.'https://github.com/not-fl3/macroquad.git']
+#macroquad = { path = "../macroquad" }
 
 #macroquad-tiled = { path = "../macroquad/tiled" }
 
-macroquad-particles = { path = "../macroquad/particles" }
+#macroquad-particles = { path = "../macroquad/particles" }
 # physics-platformer = { path = "../macroquad/physics-platformer" }
 # macroquad-profiler = { path = "../macroquad/profiler" }
 

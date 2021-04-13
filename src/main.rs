@@ -8,7 +8,8 @@ use macroquad::{
         collections::storage,
         coroutines::start_coroutine,
         scene::{self, Handle},
-    }, ui,
+    },
+    ui,
 };
 use nanoserde::DeJson;
 
@@ -75,13 +76,14 @@ pub const WEAPON_DISARM_FX: &'static str = r#"{"local_coords":false,"emission_sh
 "#;
 
 impl Resources {
-    async fn new() -> Resources {
+    // TODO: fix macroquad error type here
+    async fn new() -> Result<Resources, macroquad::prelude::FileError> {
         let mut collision_world = CollisionWorld::new();
 
-        let tileset = load_texture("assets/tileset.png").await;
+        let tileset = load_texture("assets/tileset.png").await?;
         set_texture_filter(tileset, FilterMode::Nearest);
 
-        let decorations = load_texture("assets/decorations1.png").await;
+        let decorations = load_texture("assets/decorations1.png").await?;
         set_texture_filter(decorations, FilterMode::Nearest);
 
         let tiled_map_json = load_string("assets/map.json").await.unwrap();
@@ -110,28 +112,28 @@ impl Resources {
         let disarm_fxses =
             EmittersCache::new(nanoserde::DeJson::deserialize_json(WEAPON_DISARM_FX).unwrap());
 
-        let whale = load_texture("assets/Whale/Whale(76x66)(Orange).png").await;
+        let whale = load_texture("assets/Whale/Whale(76x66)(Orange).png").await?;
         set_texture_filter(whale, FilterMode::Nearest);
 
-        let gun = load_texture("assets/Whale/Gun(92x32).png").await;
+        let gun = load_texture("assets/Whale/Gun(92x32).png").await?;
         set_texture_filter(gun, FilterMode::Nearest);
 
-        let sword = load_texture("assets/Whale/Sword(65x93).png").await;
+        let sword = load_texture("assets/Whale/Sword(65x93).png").await?;
         set_texture_filter(sword, FilterMode::Nearest);
 
-        let background_01 = load_texture("assets/Background/01.png").await;
+        let background_01 = load_texture("assets/Background/01.png").await?;
         set_texture_filter(background_01, FilterMode::Nearest);
 
-        let background_02 = load_texture("assets/Background/02.png").await;
+        let background_02 = load_texture("assets/Background/02.png").await?;
         set_texture_filter(background_02, FilterMode::Nearest);
 
-        let background_03 = load_texture("assets/Background/03.png").await;
+        let background_03 = load_texture("assets/Background/03.png").await?;
         set_texture_filter(background_03, FilterMode::Nearest);
 
-        let background_04 = load_texture("assets/Background/04.png").await;
+        let background_04 = load_texture("assets/Background/04.png").await?;
         set_texture_filter(background_04, FilterMode::Nearest);
 
-        Resources {
+        Ok(Resources {
             hit_fxses,
             explosion_fxses,
             disarm_fxses,
@@ -145,7 +147,7 @@ impl Resources {
             background_03,
             background_04,
             decorations,
-        }
+        })
     }
 }
 
@@ -218,11 +220,11 @@ async fn join_quick_match(nakama: Handle<nodes::Nakama>) {
 
 async fn network_game(nakama: Handle<nodes::Nakama>, game_type: GameType, network_id: String) {
     use nodes::{
-        Bullets, Camera, Decoration, Fxses, GlobalEvents, LevelBackground,
-        NakamaRealtimeGame, Player,
+        Bullets, Camera, Decoration, Fxses, GlobalEvents, LevelBackground, NakamaRealtimeGame,
+        Player,
     };
 
-    let resources = Resources::new().await;
+    let resources = Resources::new().await.unwrap();
 
     let w = resources.tiled_map.raw_tiled_map.tilewidth * resources.tiled_map.raw_tiled_map.width;
     let h = resources.tiled_map.raw_tiled_map.tileheight * resources.tiled_map.raw_tiled_map.height;

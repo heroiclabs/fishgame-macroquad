@@ -305,6 +305,7 @@ dependencies = [
 [[package]]
 name = "macroquad"
 version = "0.3.0-alpha.17"
+source = "git+https://github.com/not-fl3/macroquad.git#feea78f21d95fc0ee02c8df34a7c5265c7c0a27f"
 dependencies = [
  "bumpalo",
  "fontdue",
@@ -318,6 +319,7 @@ dependencies = [
 [[package]]
 name = "macroquad-particles"
 version = "0.1.0"
+source = "git+https://github.com/not-fl3/macroquad.git#feea78f21d95fc0ee02c8df34a7c5265c7c0a27f"
 dependencies = [
  "macroquad",
  "nanoserde",
@@ -326,7 +328,7 @@ dependencies = [
 [[package]]
 name = "macroquad-tiled"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#8b3e25762d8f83e0a38dfa3ae944f50f594117df"
+source = "git+https://github.com/not-fl3/macroquad.git#feea78f21d95fc0ee02c8df34a7c5265c7c0a27f"
 dependencies = [
  "macroquad",
  "nanoserde",
@@ -335,6 +337,7 @@ dependencies = [
 [[package]]
 name = "macroquad_macro"
 version = "0.1.2"
+source = "git+https://github.com/not-fl3/macroquad.git#feea78f21d95fc0ee02c8df34a7c5265c7c0a27f"
 
 [[package]]
 name = "matches"
@@ -534,7 +537,7 @@ checksum = "d4fd5641d01c8f18a23da7b6fe29298ff4b55afcccdf78973b24cf3175fee32e"
 [[package]]
 name = "physics-platformer"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#8b3e25762d8f83e0a38dfa3ae944f50f594117df"
+source = "git+https://github.com/not-fl3/macroquad.git#feea78f21d95fc0ee02c8df34a7c5265c7c0a27f"
 dependencies = [
  "macroquad",
 ]

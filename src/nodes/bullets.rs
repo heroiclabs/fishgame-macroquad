@@ -57,8 +57,8 @@ impl scene::Node for Bullets {
     }
 
     fn update(mut node: RefMut<Self>) {
-        let mut resources = storage::get_mut::<Resources>().unwrap();
-        let mut player = scene::get_node(node.player).unwrap();
+        let mut resources = storage::get_mut::<Resources>();
+        let mut player = scene::get_node(node.player);
         let mut others = scene::find_nodes_by_type::<RemotePlayer>();
 
         for bullet in &mut node.bullets {

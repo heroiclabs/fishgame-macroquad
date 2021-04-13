@@ -154,13 +154,13 @@ impl Resources {
 async fn join_quick_match(nakama: Handle<nodes::Nakama>) {
     let authentication = start_coroutine(async move {
         {
-            let mut nakama = scene::get_node(nakama).unwrap();
+            let mut nakama = scene::get_node(nakama);
             nakama
                 .api_client
                 .authenticate("super@heroes.com", "batsignal");
         }
 
-        while scene::get_node(nakama).unwrap().api_client.authenticated() == false {
+        while scene::get_node(nakama).api_client.authenticated() == false {
             next_frame().await;
         }
     });
@@ -184,14 +184,14 @@ async fn join_quick_match(nakama: Handle<nodes::Nakama>) {
     warn!("authenticated!");
 
     {
-        let api_client = &mut scene::get_node(nakama).unwrap().api_client;
+        let api_client = &mut scene::get_node(nakama).api_client;
         api_client.rpc(
             "rpc_macroquad_find_match",
             "\"{\\\"kind\\\":\\\"public\\\",\\\"engine\\\":\\\"macroquad\\\"}\"",
         );
     }
     let response = loop {
-        if let Some(response) = scene::get_node(nakama).unwrap().api_client.rpc_response() {
+        if let Some(response) = scene::get_node(nakama).api_client.rpc_response() {
             break response;
         }
         next_frame().await;
@@ -204,16 +204,10 @@ async fn join_quick_match(nakama: Handle<nodes::Nakama>) {
     }
     let response: Response = DeJson::deserialize_json(&response).unwrap();
     scene::get_node(nakama)
-        .unwrap()
         .api_client
         .socket_join_match_by_id(&response.match_id);
 
-    while scene::get_node(nakama)
-        .unwrap()
-        .api_client
-        .session_id
-        .is_none()
-    {
+    while scene::get_node(nakama).api_client.session_id.is_none() {
         next_frame().await;
     }
 }
@@ -233,7 +227,7 @@ async fn network_game(nakama: Handle<nodes::Nakama>, game_type: GameType, networ
 
     let level_background = scene::add_node(LevelBackground::new());
 
-    for object in &storage::get::<Resources>().unwrap().tiled_map.layers["decorations"].objects {
+    for object in &storage::get::<Resources>().tiled_map.layers["decorations"].objects {
         scene::add_node(Decoration::new(
             vec2(object.world_x, object.world_y),
             object.gid.unwrap(),
@@ -256,14 +250,14 @@ async fn network_game(nakama: Handle<nodes::Nakama>, game_type: GameType, networ
         400.0,
         player,
     ));
-    scene::get_node(level_background).unwrap().camera = camera;
+    scene::get_node(level_background).camera = camera;
     scene::add_node(Fxses { camera });
 
     loop {
         clear_background(BLACK);
 
         {
-            let resources = storage::get_mut::<gui::GuiResources>().unwrap();
+            let resources = storage::get_mut::<gui::GuiResources>();
 
             ui::root_ui().push_skin(&resources.login_skin);
 
@@ -306,7 +300,6 @@ async fn main() {
             Scene::QuickGame => {
                 join_quick_match(nakama).await;
                 let network_id = scene::get_node(nakama)
-                    .unwrap()
                     .api_client
                     .session_id
                     .clone()
@@ -315,18 +308,17 @@ async fn main() {
                 network_game(nakama, GameType::Deathmatch, network_id).await;
 
                 let match_leave = {
-                    let nakama = &mut scene::get_node(nakama).unwrap().api_client;
+                    let nakama = &mut scene::get_node(nakama).api_client;
                     nakama.socket_leave_match()
                 };
                 while scene::get_node(nakama)
-                    .unwrap()
                     .api_client
                     .socket_response(match_leave)
                     .is_none()
                 {
                     next_frame().await;
                 }
-                scene::get_node(nakama).unwrap().api_client.logout();
+                scene::get_node(nakama).api_client.logout();
 
                 scene::clear();
 
@@ -334,7 +326,6 @@ async fn main() {
             }
             Scene::MatchmakingGame { private } => {
                 let network_id = scene::get_node(nakama)
-                    .unwrap()
                     .api_client
                     .session_id
                     .clone()

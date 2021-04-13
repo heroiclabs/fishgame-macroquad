@@ -15,25 +15,21 @@ use crate::nodes::Nakama;
 use super::{GuiResources, Scene, WINDOW_HEIGHT, WINDOW_WIDTH};
 
 pub async fn matchmaking_lobby(nakama: Handle<Nakama>) -> Scene {
-    let username: String = scene::get_node(nakama)
-        .unwrap()
-        .api_client
-        .username()
-        .unwrap();
+    let username: String = scene::get_node(nakama).api_client.username().unwrap();
 
     let mut minimum_players = "2".to_string();
     let mut maximum_players = "4".to_string();
 
     let mut match_id = String::new();
 
-    let resources = storage::get::<GuiResources>().unwrap();
+    let resources = storage::get::<GuiResources>();
 
     let mut leaderboard_loaded = false;
 
     loop {
         root_ui().push_skin(&resources.login_skin);
 
-        let mut nakama = scene::get_node(nakama).unwrap();
+        let mut nakama = scene::get_node(nakama);
 
         let mut next_scene = None;
 

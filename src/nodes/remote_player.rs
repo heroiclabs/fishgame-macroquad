@@ -84,14 +84,14 @@ impl RemotePlayer {
             Some(Weapon::Sword) => {
                 let swing = async move {
                     {
-                        if let Some(mut node) = scene::get_node(handle) {
+                        if let Some(mut node) = scene::try_get_node(handle) {
                             node.fish.sword_sprite.set_animation(1);
                         }
                     }
 
                     for i in 0u32..3 {
                         {
-                            if let Some(mut node) = scene::get_node(handle) {
+                            if let Some(mut node) = scene::try_get_node(handle) {
                                 node.fish.sword_sprite.set_frame(i);
                             }
                         }
@@ -100,7 +100,7 @@ impl RemotePlayer {
                     }
 
                     {
-                        if let Some(mut node) = scene::get_node(handle) {
+                        if let Some(mut node) = scene::try_get_node(handle) {
                             node.fish.sword_sprite.set_animation(0);
                         }
                     }
@@ -131,7 +131,7 @@ impl scene::Node for RemotePlayer {
 
     fn update(mut node: RefMut<Self>) {
         if node.dead {
-            let resources = storage::get::<Resources>().unwrap();
+            let resources = storage::get::<Resources>();
             let on_ground = resources
                 .collision_world
                 .collide_check(node.fish.collider, node.fish.pos() + vec2(0., 1.));

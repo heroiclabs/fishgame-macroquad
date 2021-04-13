@@ -12,7 +12,7 @@ pub async fn main_menu() -> Scene {
     loop {
         clear_background(BLACK);
 
-        let resources = storage::get::<GuiResources>().unwrap();
+        let resources = storage::get::<GuiResources>();
         root_ui().push_skin(&resources.title_skin);
 
         let title = "FISH GAME";

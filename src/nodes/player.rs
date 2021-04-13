@@ -49,7 +49,7 @@ pub struct Fish {
 
 impl Fish {
     pub fn new(spawner_pos: Vec2) -> Fish {
-        let mut resources = storage::get_mut::<Resources>().unwrap();
+        let mut resources = storage::get_mut::<Resources>();
 
         let fish_sprite = AnimatedSprite::new(
             76,
@@ -190,7 +190,7 @@ impl Fish {
     }
 
     pub fn draw(&mut self) {
-        let resources = storage::get::<Resources>().unwrap();
+        let resources = storage::get::<Resources>();
 
         self.fish_sprite.update();
 
@@ -293,7 +293,7 @@ impl Player {
         nakama_realtime: Handle<NakamaRealtimeGame>,
     ) -> Player {
         let spawner_pos = {
-            let resources = storage::get_mut::<Resources>().unwrap();
+            let resources = storage::get_mut::<Resources>();
             let objects = &resources.tiled_map.layers["logic"].objects;
             let macroquad_tiled::Object {
                 world_x, world_y, ..
@@ -374,7 +374,7 @@ impl Player {
         let handle = node.handle();
         let coroutine = async move {
             {
-                let mut node = scene::get_node(handle).unwrap();
+                let mut node = scene::get_node(handle);
                 node.fish.speed.x = -300. * node.fish.facing_dir();
                 node.fish.speed.y = -150.;
 
@@ -385,12 +385,12 @@ impl Player {
             wait_seconds(0.1).await;
 
             // wait until it lands
-            while scene::get_node(handle).unwrap().fish.on_ground == false {
+            while scene::get_node(handle).fish.on_ground == false {
                 next_frame().await;
             }
 
             {
-                let mut node = scene::get_node(handle).unwrap();
+                let mut node = scene::get_node(handle);
                 node.fish.fish_sprite.set_animation(3);
                 node.fish.speed = vec2(0., 0.);
             }
@@ -398,8 +398,8 @@ impl Player {
             wait_seconds(0.5).await;
 
             {
-                let mut resources = storage::get_mut::<Resources>().unwrap();
-                let mut node = scene::get_node(handle).unwrap();
+                let mut resources = storage::get_mut::<Resources>();
+                let mut node = scene::get_node(handle);
                 let pos = node.fish.pos;
 
                 node.fish.fish_sprite.playing = false;
@@ -409,8 +409,8 @@ impl Player {
 
             wait_seconds(0.5).await;
 
-            let mut resources = storage::get_mut::<Resources>().unwrap();
-            let mut this = scene::get_node(handle).unwrap();
+            let mut resources = storage::get_mut::<Resources>();
+            let mut this = scene::get_node(handle);
 
             this.fish.pos = {
                 let objects = &resources.tiled_map.layers["logic"].objects;
@@ -440,10 +440,10 @@ impl Player {
         let handle = node.handle();
         let coroutine = async move {
             {
-                let mut node = &mut *scene::get_node(handle).unwrap();
+                let mut node = &mut *scene::get_node(handle);
 
                 node.fish.gun_fx = true;
-                let mut nakama = scene::get_node(node.nakama_realtime).unwrap();
+                let mut nakama = scene::get_node(node.nakama_realtime);
                 nakama.shoot();
 
                 let mut bullets = scene::find_node_by_type::<crate::nodes::Bullets>().unwrap();
@@ -451,12 +451,12 @@ impl Player {
                 node.fish.speed.x = -consts::GUN_THROWBACK * node.fish.facing_dir();
             }
             {
-                let node = &mut *scene::get_node(handle).unwrap();
+                let node = &mut *scene::get_node(handle);
                 node.fish.gun_sprite.set_animation(1);
             }
             for i in 0u32..3 {
                 {
-                    let node = &mut *scene::get_node(handle).unwrap();
+                    let node = &mut *scene::get_node(handle);
                     node.fish.gun_sprite.set_frame(i);
                     node.fish.gun_fx_sprite.set_frame(i);
                 }
@@ -464,11 +464,11 @@ impl Player {
                 wait_seconds(0.08).await;
             }
             {
-                let mut node = scene::get_node(handle).unwrap();
+                let mut node = scene::get_node(handle);
                 node.fish.gun_sprite.set_animation(0);
             }
 
-            let mut node = &mut *scene::get_node(handle).unwrap();
+            let mut node = &mut *scene::get_node(handle);
 
             node.fish.gun_fx = false;
 
@@ -476,7 +476,7 @@ impl Player {
                 *bullets -= 1;
 
                 if *bullets <= 0 {
-                    let mut resources = storage::get_mut::<Resources>().unwrap();
+                    let mut resources = storage::get_mut::<Resources>();
                     resources.disarm_fxses.spawn(node.fish.pos + vec2(16., 33.));
                     node.fish.weapon = None;
                 }
@@ -498,15 +498,15 @@ impl Player {
         let handle = node.handle();
         let coroutine = async move {
             {
-                let node = &mut *scene::get_node(handle).unwrap();
+                let node = &mut *scene::get_node(handle);
                 node.fish.sword_sprite.set_animation(1);
 
-                let mut nakama = scene::get_node(node.nakama_realtime).unwrap();
+                let mut nakama = scene::get_node(node.nakama_realtime);
                 nakama.shoot();
             }
 
             {
-                let node = &mut *scene::get_node(handle).unwrap();
+                let node = &mut *scene::get_node(handle);
                 let others = scene::find_nodes_by_type::<crate::nodes::RemotePlayer>();
                 let sword_hit_box = if node.fish.facing {
                     Rect::new(node.pos().x + 35., node.pos().y - 5., 40., 60.)
@@ -517,7 +517,7 @@ impl Player {
                 for player in others {
                     if Rect::new(player.pos().x, player.pos().y, 20., 64.).overlaps(&sword_hit_box)
                     {
-                        let mut net = scene::get_node(node.nakama_realtime).unwrap();
+                        let mut net = scene::get_node(node.nakama_realtime);
                         net.kill(&player.id, !node.fish.facing);
                     }
                 }
@@ -525,7 +525,7 @@ impl Player {
 
             for i in 0u32..3 {
                 {
-                    let node = &mut *scene::get_node(handle).unwrap();
+                    let node = &mut *scene::get_node(handle);
                     node.fish.sword_sprite.set_frame(i);
                 }
 
@@ -533,11 +533,11 @@ impl Player {
             }
 
             {
-                let mut node = scene::get_node(handle).unwrap();
+                let mut node = scene::get_node(handle);
                 node.fish.sword_sprite.set_animation(0);
             }
 
-            let node = &mut *scene::get_node(handle).unwrap();
+            let node = &mut *scene::get_node(handle);
             node.state_machine.set_state(Self::ST_NORMAL);
         };
 
@@ -549,8 +549,8 @@ impl Player {
     }
 
     fn update_aftermatch(node: &mut RefMut<Player>, _dt: f32) {
-        let resources = storage::get::<crate::gui::GuiResources>().unwrap();
-        let nakama = &mut scene::get_node(node.nakama).unwrap().api_client;
+        let resources = storage::get::<crate::gui::GuiResources>();
+        let nakama = &mut scene::get_node(node.nakama).api_client;
 
         node.fish.speed.x = 0.0;
 
@@ -695,7 +695,7 @@ impl scene::Node for Player {
             let node = &mut *node;
             let fish = &mut node.fish;
 
-            let mut resources = storage::get_mut::<Resources>().unwrap();
+            let mut resources = storage::get_mut::<Resources>();
             fish.pos = resources.collision_world.actor_pos(fish.collider);
 
             fish.on_ground = resources

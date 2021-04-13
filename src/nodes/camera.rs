@@ -1,11 +1,9 @@
 use macroquad::{
-    experimental::{
-        scene::{self, Handle, RefMut},
-    },
+    experimental::scene::{self, Handle, RefMut},
     prelude::*,
 };
 
-use crate::{nodes::Player};
+use crate::nodes::Player;
 
 pub struct Camera {
     bounds: Rect,
@@ -41,7 +39,7 @@ impl Camera {
 
 impl scene::Node for Camera {
     fn update(mut node: RefMut<Self>) {
-        if let Some(player) = scene::get_node::<Player>(node.player) {
+        if let Some(player) = scene::try_get_node::<Player>(node.player) {
             node.follow_buffer.insert(0, player.pos());
             node.follow_buffer.truncate(Self::BUFFER_CAPACITY);
 

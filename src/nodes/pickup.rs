@@ -40,7 +40,7 @@ impl scene::Node for Pickup {
             let n = 25;
             for i in 0..n {
                 // if player pick up the item real quick - the node may be already removed here
-                if let Some(mut this) = scene::get_node(handle) {
+                if let Some(mut this) = scene::try_get_node(handle) {
                     this.visual_scale =
                         1.0 + (i as f32 / n as f32 * std::f32::consts::PI).sin() * 3.0;
                 }
@@ -54,20 +54,20 @@ impl scene::Node for Pickup {
 
             let n = 10;
             for _ in 0..n {
-                if let Some(mut this) = scene::get_node(handle) {
+                if let Some(mut this) = scene::try_get_node(handle) {
                     this.visual_scale -= 1.0 / n as f32;
                 }
                 next_frame().await;
             }
 
-            if let Some(this) = scene::get_node(handle) {
+            if let Some(this) = scene::try_get_node(handle) {
                 this.delete();
             }
         });
     }
 
     fn draw(node: RefMut<Self>) {
-        let resources = storage::get_mut::<Resources>().unwrap();
+        let resources = storage::get_mut::<Resources>();
 
         resources.tiled_map.spr_ex(
             "tileset",

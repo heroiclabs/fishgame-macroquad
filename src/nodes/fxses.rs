@@ -14,7 +14,7 @@ pub struct Fxses {
 
 impl scene::Node for Fxses {
     fn draw(_node: RefMut<Self>) {
-        let mut resources = storage::get_mut::<Resources>().unwrap();
+        let mut resources = storage::get_mut::<Resources>();
 
         let _z = telemetry::ZoneGuard::new("draw particles");
 

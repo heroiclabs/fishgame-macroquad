@@ -23,10 +23,10 @@ pub async fn authentication(nakama: Handle<Nakama>) -> Scene {
     let mut authenticating = false;
 
     loop {
-        let resources = storage::get::<GuiResources>().unwrap();
+        let resources = storage::get::<GuiResources>();
         root_ui().push_skin(&resources.login_skin);
 
-        let mut nakama = scene::get_node(nakama).unwrap();
+        let mut nakama = scene::get_node(nakama);
 
         let mut next_scene = None;
         root_ui().window(

@@ -36,7 +36,7 @@ impl GlobalEvents {
 
 impl scene::Node for GlobalEvents {
     fn update(mut node: RefMut<Self>) {
-        let mut nakama = scene::get_node(node.nakama).unwrap();
+        let mut nakama = scene::get_node(node.nakama);
 
         if nakama.is_host() == false || nakama.game_started() == false {
             return;
@@ -45,7 +45,7 @@ impl scene::Node for GlobalEvents {
         if get_time() - node.last_spawn_time >= Self::SPAWN_INTERVAL as _
             && node.spawned_items.len() < 3
         {
-            let resources = storage::get::<Resources>().unwrap();
+            let resources = storage::get::<Resources>();
 
             let tilewidth = resources.tiled_map.raw_tiled_map.tilewidth as f32;
             let w = resources.tiled_map.raw_tiled_map.width as f32;
@@ -91,7 +91,7 @@ impl scene::Node for GlobalEvents {
         let mut others = scene::find_nodes_by_type::<RemotePlayer>();
 
         node.spawned_items.retain(|(id, item_handle)| {
-            let item = scene::get_node(*item_handle);
+            let item = scene::try_get_node(*item_handle);
             // already destroyed itself.
             if item.is_none() {
                 nakama.delete_item(*id);

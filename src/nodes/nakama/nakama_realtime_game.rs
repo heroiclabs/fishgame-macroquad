@@ -169,7 +169,7 @@ impl NakamaRealtimeGame {
     }
 
     pub fn spawn_item(&mut self, id: usize, pos: Vec2, item_type: ItemType) {
-        let mut nakama = scene::get_node(self.nakama).unwrap();
+        let mut nakama = scene::get_node(self.nakama);
         nakama.api_client.socket_send(
             message::SpawnItem::OPCODE,
             &message::SpawnItem {
@@ -182,7 +182,7 @@ impl NakamaRealtimeGame {
     }
 
     pub fn delete_item(&mut self, id: usize) {
-        let mut nakama = scene::get_node(self.nakama).unwrap();
+        let mut nakama = scene::get_node(self.nakama);
         nakama.api_client.socket_send(
             message::DeleteItem::OPCODE,
             &message::DeleteItem { id: id as _ },
@@ -190,7 +190,7 @@ impl NakamaRealtimeGame {
     }
 
     pub fn kill(&mut self, target: &str, direction: bool) {
-        let mut nakama = scene::get_node(self.nakama).unwrap();
+        let mut nakama = scene::get_node(self.nakama);
         nakama.api_client.socket_send(
             message::Damage::OPCODE,
             &message::Damage {
@@ -216,7 +216,7 @@ impl Node for NakamaRealtimeGame {
         let idle = async move {
             loop {
                 {
-                    let mut nakama = scene::get_node(nakama).unwrap();
+                    let mut nakama = scene::get_node(nakama);
 
                     nakama
                         .api_client
@@ -234,8 +234,8 @@ impl Node for NakamaRealtimeGame {
         }
 
         if node.game_type != GameType::Deathmatch && node.game_started == false {
-            let resources = storage::get::<crate::gui::GuiResources>().unwrap();
-            let nakama = &mut scene::get_node(node.nakama).unwrap().api_client;
+            let resources = storage::get::<crate::gui::GuiResources>();
+            let nakama = &mut scene::get_node(node.nakama).api_client;
 
             ui::root_ui().push_skin(&resources.login_skin);
             ui::root_ui().window(
@@ -255,7 +255,7 @@ impl Node for NakamaRealtimeGame {
                             .ui(ui, &mut match_id);
                     }
                     for player in node.remote_players.values() {
-                        let player = scene::get_node(*player).unwrap();
+                        let player = scene::get_node(*player);
                         ui.label(None, &format!("{}: ", player.username));
                         ui.same_line(300.0);
                         if player.ready {
@@ -302,7 +302,7 @@ impl Node for NakamaRealtimeGame {
     }
 
     fn update(mut node: RefMut<Self>) {
-        let api_client = &mut scene::get_node(node.nakama).unwrap().api_client;
+        let api_client = &mut scene::get_node(node.nakama).api_client;
 
         {
             let shooting = node.shoot_pending;
@@ -343,9 +343,9 @@ impl Node for NakamaRealtimeGame {
                     for leaver in leaves {
                         let leaver = leaver.session_id;
                         if let Some(leaver) = node.remote_players.remove(&leaver) {
-                            let mut resources = storage::get_mut::<Resources>().unwrap();
+                            let mut resources = storage::get_mut::<Resources>();
 
-                            let leaver = scene::get_node::<RemotePlayer>(leaver).unwrap();
+                            let leaver = scene::get_node::<RemotePlayer>(leaver);
                             resources
                                 .explosion_fxses
                                 .spawn(leaver.pos() + vec2(15., 33.));
@@ -379,7 +379,7 @@ impl Node for NakamaRealtimeGame {
                     data,
                 } => {
                     if let Some(other) = node.remote_players.get(&user_id) {
-                        let mut other = scene::get_node(*other).unwrap();
+                        let mut other = scene::get_node(*other);
 
                         match opcode as i32 {
                             message::State::OPCODE => {
@@ -391,7 +391,7 @@ impl Node for NakamaRealtimeGame {
                                 other.set_facing(state.facing());
 
                                 if state.dead() && other.dead != state.dead() {
-                                    let mut resources = storage::get_mut::<Resources>().unwrap();
+                                    let mut resources = storage::get_mut::<Resources>();
                                     resources
                                         .explosion_fxses
                                         .spawn(other.pos() + vec2(15., 33.));
@@ -399,7 +399,7 @@ impl Node for NakamaRealtimeGame {
                                 other.set_dead(state.dead());
 
                                 if other.weapon().is_some() && state.weapon() == 0 {
-                                    let mut resources = storage::get_mut::<Resources>().unwrap();
+                                    let mut resources = storage::get_mut::<Resources>();
                                     resources.disarm_fxses.spawn(pos + vec2(16., 33.));
                                     other.disarm();
                                 }
@@ -449,7 +449,7 @@ impl Node for NakamaRealtimeGame {
                                     },
                                 ));
                                 if let Some(pickup) = node.pickups.insert(id as _, new_node) {
-                                    if let Some(node) = scene::get_node(pickup) {
+                                    if let Some(node) = scene::try_get_node(pickup) {
                                         node.delete();
                                     }
                                 }
@@ -459,7 +459,7 @@ impl Node for NakamaRealtimeGame {
                                     DeBin::deserialize_bin(&data).unwrap();
 
                                 if let Some(pickup) = node.pickups.remove(&(id as usize)) {
-                                    if let Some(node) = scene::get_node(pickup) {
+                                    if let Some(node) = scene::try_get_node(pickup) {
                                         node.delete();
                                     }
                                 }

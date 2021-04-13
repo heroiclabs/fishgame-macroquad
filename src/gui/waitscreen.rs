@@ -13,7 +13,7 @@ use crate::nodes::Nakama;
 use super::{in_progress_gui, GuiResources, Scene, WINDOW_HEIGHT, WINDOW_WIDTH};
 
 pub async fn waitscreen(nakama: Handle<Nakama>, private: bool) -> Scene {
-    let resources = storage::get::<GuiResources>().unwrap();
+    let resources = storage::get::<GuiResources>();
 
     enum State {
         WaitingForMatchmaking,
@@ -30,7 +30,7 @@ pub async fn waitscreen(nakama: Handle<Nakama>, private: bool) -> Scene {
 
         let mut next_scene = None;
 
-        let mut nakama = scene::get_node(nakama).unwrap();
+        let mut nakama = scene::get_node(nakama);
 
         root_ui().window(
             hash!(),

@@ -15,7 +15,7 @@ use macroquad::{
 use nanoserde::DeJson;
 
 use particles::EmittersCache;
-use physics_platformer::World as CollisionWorld;
+use macroquad_platformer::World as CollisionWorld;
 
 mod credentials {
     include!(concat!(env!("OUT_DIR"), "/nakama_credentials.rs"));
@@ -83,39 +83,11 @@ pub const WEAPON_DISARM_FX: &'static str = r#"{"local_coords":false,"emission_sh
 impl Resources {
     // TODO: fix macroquad error type here
     async fn new() -> Result<Resources, macroquad::prelude::FileError> {
-        let mut collision_world = CollisionWorld::new();
-
         let tileset = load_texture("assets/tileset.png").await?;
         tileset.set_filter(FilterMode::Nearest);
 
         let decorations = load_texture("assets/decorations1.png").await?;
         decorations.set_filter(FilterMode::Nearest);
-
-        let tiled_map_json = load_string("assets/map.json").await.unwrap();
-        let tiled_map = tiled::load_map(
-            &tiled_map_json,
-            &[("tileset.png", tileset), ("decorations1.png", decorations)],
-            &[],
-        )
-        .unwrap();
-
-        let mut static_colliders = vec![];
-        for (_x, _y, tile) in tiled_map.tiles("main layer", None) {
-            static_colliders.push(tile.is_some());
-        }
-        collision_world.add_static_tiled_layer(
-            static_colliders,
-            32.,
-            32.,
-            tiled_map.raw_tiled_map.width as _,
-            1,
-        );
-
-        let hit_fxses = EmittersCache::new(nanoserde::DeJson::deserialize_json(HIT_FX).unwrap());
-        let explosion_fxses =
-            EmittersCache::new(nanoserde::DeJson::deserialize_json(EXPLOSION_FX).unwrap());
-        let disarm_fxses =
-            EmittersCache::new(nanoserde::DeJson::deserialize_json(WEAPON_DISARM_FX).unwrap());
 
         let whale = load_texture("assets/Whale/Whale(76x66)(Orange).png").await?;
         whale.set_filter(FilterMode::Nearest);
@@ -142,6 +114,33 @@ impl Resources {
         let shoot_sound = load_sound("assets/sounds/shoot.ogg").await?;
         let sword_sound = load_sound("assets/sounds/sword.wav").await?;
         let pickup_sound = load_sound("assets/sounds/pickup.wav").await?;
+
+        let tiled_map_json = load_string("assets/map.json").await.unwrap();
+        let tiled_map = tiled::load_map(
+            &tiled_map_json,
+            &[("tileset.png", tileset), ("decorations1.png", decorations)],
+            &[],
+        )
+        .unwrap();
+
+        let mut static_colliders = vec![];
+        for (_x, _y, tile) in tiled_map.tiles("main layer", None) {
+            static_colliders.push(tile.is_some());
+        }
+        let mut collision_world = CollisionWorld::new();
+        collision_world.add_static_tiled_layer(
+            static_colliders,
+            32.,
+            32.,
+            tiled_map.raw_tiled_map.width as _,
+            1,
+        );
+
+        let hit_fxses = EmittersCache::new(nanoserde::DeJson::deserialize_json(HIT_FX).unwrap());
+        let explosion_fxses =
+            EmittersCache::new(nanoserde::DeJson::deserialize_json(EXPLOSION_FX).unwrap());
+        let disarm_fxses =
+            EmittersCache::new(nanoserde::DeJson::deserialize_json(WEAPON_DISARM_FX).unwrap());
 
         Ok(Resources {
             hit_fxses,
@@ -232,7 +231,26 @@ async fn network_game(nakama: Handle<nodes::Nakama>, game_type: GameType, networ
         Player,
     };
 
-    let resources = Resources::new().await.unwrap();
+    let resources_loading = start_coroutine(async move {
+        let resources = Resources::new().await.unwrap();
+        storage::store(resources);
+    });
+
+    while resources_loading.is_done() == false {
+        clear_background(BLACK);
+        draw_text(
+            &format!(
+                "Loading resources {}",
+                ".".repeat(((get_time() * 2.0) as usize) % 4)
+            ),
+            screen_width() / 2.0 - 160.0,
+            screen_height() / 2.0,
+            40.,
+            WHITE,
+        );
+
+        next_frame().await;
+    }
 
     let battle_music = load_sound("assets/music/across the pond.ogg")
         .await
@@ -246,19 +264,19 @@ async fn network_game(nakama: Handle<nodes::Nakama>, game_type: GameType, networ
         },
     );
 
+    let resources = storage::get::<Resources>();
     let w = resources.tiled_map.raw_tiled_map.tilewidth * resources.tiled_map.raw_tiled_map.width;
     let h = resources.tiled_map.raw_tiled_map.tileheight * resources.tiled_map.raw_tiled_map.height;
 
-    storage::store(resources);
-
     let level_background = scene::add_node(LevelBackground::new());
 
-    for object in &storage::get::<Resources>().tiled_map.layers["decorations"].objects {
+    for object in &resources.tiled_map.layers["decorations"].objects {
         scene::add_node(Decoration::new(
             vec2(object.world_x, object.world_y),
             object.gid.unwrap(),
         ));
     }
+    drop(resources);
 
     let nakama_realtime = scene::add_node(NakamaRealtimeGame::new(nakama, game_type, network_id));
 
@@ -291,6 +309,7 @@ async fn network_game(nakama: Handle<nodes::Nakama>, game_type: GameType, networ
                 || scene::find_node_by_type::<Player>().unwrap().want_quit
             {
                 ui::root_ui().pop_skin();
+                stop_sound(battle_music);
                 return;
             }
             ui::root_ui().pop_skin();
@@ -395,7 +414,7 @@ async fn main() {
                 next_scene = gui::waitscreen(nakama, private).await;
             }
             Scene::Credits => {
-                unimplemented!()
+                next_scene = gui::credits().await;
             }
         }
     }

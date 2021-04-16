@@ -303,11 +303,10 @@ dependencies = [
  "bitfield",
  "macroquad",
  "macroquad-particles",
+ "macroquad-platformer",
  "macroquad-tiled",
  "nakama-rs",
  "nanoserde",
- "physics-platformer",
- "sapp-jsutils",
 ]
 
 [[package]]
@@ -375,12 +374,9 @@ checksum = "3dcaa9ae7725d12cdb85b3ad99a434db70b468c09ded17e012d86b5c1010f7a7"
 
 [[package]]
 name = "glam"
-version = "0.10.2"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "579160312273c954cc51bd440f059dde741029ac8daf8c84fece76cb77f62c15"
-dependencies = [
- "version_check",
-]
+checksum = "333928d5eb103c5d4050533cec0384302db6be8ef7d3cebd30ec6a35350353da"
 
 [[package]]
 name = "glob"
@@ -429,9 +425,9 @@ dependencies = [
 
 [[package]]
 name = "idna"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89829a5d69c23d348314a7ac337fe39173b61149a9864deabd260983aed48c21"
+checksum = "418a0a6fab821475f634efe3ccc45c013f742efe03d853e8d3355d5cb850ecf8"
 dependencies = [
  "matches",
  "unicode-bidi",
@@ -587,7 +583,9 @@ dependencies = [
 
 [[package]]
 name = "macroquad"
-version = "0.3.0-alpha.17"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19e9a227ffaf48bcb3022d0e1941fd0f4da4b49f0d05fd53ea252b2f024dca82"
 dependencies = [
  "bumpalo",
  "fontdue",
@@ -601,17 +599,28 @@ dependencies = [
 
 [[package]]
 name = "macroquad-particles"
-version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#df06a22f94b8fbfe78a0f2b2c9312b5f42106e43"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8505dc035e4d68799a53a459afef0bc345410039325b5928af2e0d83eb15de40"
 dependencies = [
  "macroquad",
  "nanoserde",
 ]
 
 [[package]]
+name = "macroquad-platformer"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "778dc06c04525a167ba7d0f75399a30ab2e13502bbe6a09d518b8ab9ff508d56"
+dependencies = [
+ "macroquad",
+]
+
+[[package]]
 name = "macroquad-tiled"
 version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#df06a22f94b8fbfe78a0f2b2c9312b5f42106e43"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bd057cf2f006367a287b5d59ac50d8fcd12ba5575d68f9a5e55d3f7912d81ed"
 dependencies = [
  "macroquad",
  "nanoserde",
@@ -620,6 +629,8 @@ dependencies = [
 [[package]]
 name = "macroquad_macro"
 version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88dc77cec2b364f6e0cba5701b20482ef5c7c87f5587ee9e9296240936eaaf8a"
 
 [[package]]
 name = "matches"
@@ -702,8 +713,9 @@ dependencies = [
 
 [[package]]
 name = "nakama-rs"
-version = "0.1.0"
-source = "git+https://github.com/not-fl3/nakama-rs.git#29f55616f1ca3060b81b38843699807c11e9fb95"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e763baf2d26a896e19d1ce17b9ea55069d534b57db3e25b999df517f702b26e"
 dependencies = [
  "base64",
  "nanoserde",
@@ -984,14 +996,6 @@ name = "percent-encoding"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4fd5641d01c8f18a23da7b6fe29298ff4b55afcccdf78973b24cf3175fee32e"
-
-[[package]]
-name = "physics-platformer"
-version = "0.1.0"
-source = "git+https://github.com/not-fl3/macroquad.git#df06a22f94b8fbfe78a0f2b2c9312b5f42106e43"
-dependencies = [
- "macroquad",
-]
 
 [[package]]
 name = "pkg-config"
@@ -1445,7 +1449,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ccd964113622c8e9322cfac19eb1004a07e636c545f325da085d5cdde6f1f8b"
 dependencies = [
  "form_urlencoded",
- "idna 0.2.2",
+ "idna 0.2.3",
  "matches",
  "percent-encoding 2.1.0",
 ]

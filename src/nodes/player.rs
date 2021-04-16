@@ -11,7 +11,7 @@ use macroquad::{
     prelude::*,
     ui::{self, hash},
 };
-use physics_platformer::Actor;
+use macroquad_platformer::Actor;
 
 use crate::{
     consts,

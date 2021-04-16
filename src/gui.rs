@@ -9,12 +9,14 @@ mod lobby;
 mod main_menu;
 mod style;
 mod waitscreen;
+mod credits;
 
 pub use authentication::authentication;
 pub use lobby::matchmaking_lobby;
 pub use main_menu::main_menu;
 pub use style::GuiResources;
 pub use waitscreen::waitscreen;
+pub use credits::credits;
 
 const WINDOW_WIDTH: f32 = 700.0;
 const WINDOW_HEIGHT: f32 = 300.0;

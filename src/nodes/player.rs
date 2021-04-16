@@ -1,4 +1,5 @@
 use macroquad::{
+    audio::{self, play_sound_once},
     color,
     experimental::{
         animation::{AnimatedSprite, Animation},
@@ -131,6 +132,7 @@ impl Fish {
             }],
             false,
         );
+
         Fish {
             fish_sprite,
             gun_fx_sprite,
@@ -173,6 +175,9 @@ impl Fish {
     }
 
     pub fn pick_weapon(&mut self, item_type: ItemType) {
+        let resources = storage::get_mut::<Resources>();
+        play_sound_once(resources.pickup_sound);
+
         match item_type {
             ItemType::Gun => {
                 self.weapon = Some(Weapon::Gun { bullets: 3 });
@@ -187,6 +192,19 @@ impl Fish {
         } else {
             -1.
         }
+    }
+
+    pub fn jump(&mut self) {
+        let resources = storage::get::<Resources>();
+
+        self.speed.y = -consts::JUMP_SPEED;
+        audio::play_sound(
+            resources.jump_sound,
+            audio::PlaySoundParams {
+                looped: false,
+                volume: 0.6,
+            },
+        );
     }
 
     pub fn draw(&mut self) {
@@ -440,6 +458,9 @@ impl Player {
         let handle = node.handle();
         let coroutine = async move {
             {
+                let resources = storage::get_mut::<Resources>();
+                play_sound_once(resources.shoot_sound);
+
                 let mut node = &mut *scene::get_node(handle);
 
                 node.fish.gun_fx = true;
@@ -498,6 +519,9 @@ impl Player {
         let handle = node.handle();
         let coroutine = async move {
             {
+                let resources = storage::get_mut::<Resources>();
+                play_sound_once(resources.sword_sound);
+
                 let node = &mut *scene::get_node(handle);
                 node.fish.sword_sprite.set_animation(1);
 
@@ -608,7 +632,7 @@ impl Player {
         if fish.input.jump {
             if node.jump_grace_timer > 0. {
                 node.jump_grace_timer = 0.0;
-                fish.speed.y = -consts::JUMP_SPEED;
+                fish.jump();
             }
         }
 

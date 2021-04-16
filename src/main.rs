@@ -4,6 +4,7 @@ use macroquad_particles as particles;
 use macroquad_tiled as tiled;
 
 use macroquad::{
+    audio::{load_sound, play_sound, stop_sound, PlaySoundParams, Sound},
     experimental::{
         collections::storage,
         coroutines::start_coroutine,
@@ -64,6 +65,10 @@ struct Resources {
     background_03: Texture2D,
     background_04: Texture2D,
     decorations: Texture2D,
+    jump_sound: Sound,
+    shoot_sound: Sound,
+    sword_sound: Sound,
+    pickup_sound: Sound,
 }
 
 pub const HIT_FX: &'static str = r#"{"local_coords":false,"emission_shape":{"Point":[]},"one_shot":true,"lifetime":0.2,"lifetime_randomness":0,"explosiveness":0.65,"amount":41,"shape":{"Circle":{"subdivisions":10}},"emitting":false,"initial_direction":{"x":0,"y":-1},"initial_direction_spread":6.2831855,"initial_velocity":73.9,"initial_velocity_randomness":0.2,"linear_accel":0,"size":5.6000004,"size_randomness":0.4,"blend_mode":{"Alpha":[]},"colors_curve":{"start":{"r":0.8200004,"g":1,"b":0.31818175,"a":1},"mid":{"r":0.71000004,"g":0.36210018,"b":0,"a":1},"end":{"r":0.02,"g":0,"b":0.000000007152557,"a":1}},"gravity":{"x":0,"y":0},"post_processing":{}}
@@ -81,10 +86,10 @@ impl Resources {
         let mut collision_world = CollisionWorld::new();
 
         let tileset = load_texture("assets/tileset.png").await?;
-        set_texture_filter(tileset, FilterMode::Nearest);
+        tileset.set_filter(FilterMode::Nearest);
 
         let decorations = load_texture("assets/decorations1.png").await?;
-        set_texture_filter(decorations, FilterMode::Nearest);
+        decorations.set_filter(FilterMode::Nearest);
 
         let tiled_map_json = load_string("assets/map.json").await.unwrap();
         let tiled_map = tiled::load_map(
@@ -113,25 +118,30 @@ impl Resources {
             EmittersCache::new(nanoserde::DeJson::deserialize_json(WEAPON_DISARM_FX).unwrap());
 
         let whale = load_texture("assets/Whale/Whale(76x66)(Orange).png").await?;
-        set_texture_filter(whale, FilterMode::Nearest);
+        whale.set_filter(FilterMode::Nearest);
 
         let gun = load_texture("assets/Whale/Gun(92x32).png").await?;
-        set_texture_filter(gun, FilterMode::Nearest);
+        gun.set_filter(FilterMode::Nearest);
 
         let sword = load_texture("assets/Whale/Sword(65x93).png").await?;
-        set_texture_filter(sword, FilterMode::Nearest);
+        sword.set_filter(FilterMode::Nearest);
 
         let background_01 = load_texture("assets/Background/01.png").await?;
-        set_texture_filter(background_01, FilterMode::Nearest);
+        background_01.set_filter(FilterMode::Nearest);
 
         let background_02 = load_texture("assets/Background/02.png").await?;
-        set_texture_filter(background_02, FilterMode::Nearest);
+        background_02.set_filter(FilterMode::Nearest);
 
         let background_03 = load_texture("assets/Background/03.png").await?;
-        set_texture_filter(background_03, FilterMode::Nearest);
+        background_03.set_filter(FilterMode::Nearest);
 
         let background_04 = load_texture("assets/Background/04.png").await?;
-        set_texture_filter(background_04, FilterMode::Nearest);
+        background_04.set_filter(FilterMode::Nearest);
+
+        let jump_sound = load_sound("assets/sounds/jump.wav").await?;
+        let shoot_sound = load_sound("assets/sounds/shoot.ogg").await?;
+        let sword_sound = load_sound("assets/sounds/sword.wav").await?;
+        let pickup_sound = load_sound("assets/sounds/pickup.wav").await?;
 
         Ok(Resources {
             hit_fxses,
@@ -147,6 +157,10 @@ impl Resources {
             background_03,
             background_04,
             decorations,
+            jump_sound,
+            shoot_sound,
+            sword_sound,
+            pickup_sound,
         })
     }
 }
@@ -220,6 +234,18 @@ async fn network_game(nakama: Handle<nodes::Nakama>, game_type: GameType, networ
 
     let resources = Resources::new().await.unwrap();
 
+    let battle_music = load_sound("assets/music/across the pond.ogg")
+        .await
+        .unwrap();
+
+    play_sound(
+        battle_music,
+        PlaySoundParams {
+            looped: true,
+            volume: 0.6,
+        },
+    );
+
     let w = resources.tiled_map.raw_tiled_map.tilewidth * resources.tiled_map.raw_tiled_map.width;
     let h = resources.tiled_map.raw_tiled_map.tileheight * resources.tiled_map.raw_tiled_map.height;
 
@@ -287,17 +313,29 @@ async fn main() {
         credentials::NAKAMA_PROTOCOL,
     ));
 
+    let whale_theme = load_sound("assets/music/whale theme.ogg").await.unwrap();
+    let fish_bowl = load_sound("assets/music/fish bowl.ogg").await.unwrap();
+
     let gui_resources = gui::GuiResources::new();
     storage::store(gui_resources);
 
     //let mut next_scene = gui::matchmaking_lobby().await;
-    let mut next_scene = gui::main_menu().await;
+    let mut next_scene = Scene::MainMenu;
     loop {
         match next_scene {
             Scene::MainMenu => {
+                play_sound(
+                    whale_theme,
+                    PlaySoundParams {
+                        looped: true,
+                        volume: 0.6,
+                    },
+                );
                 next_scene = gui::main_menu().await;
             }
             Scene::QuickGame => {
+                stop_sound(whale_theme);
+
                 join_quick_match(nakama).await;
                 let network_id = scene::get_node(nakama)
                     .api_client
@@ -325,6 +363,8 @@ async fn main() {
                 next_scene = Scene::MainMenu;
             }
             Scene::MatchmakingGame { private } => {
+                stop_sound(fish_bowl);
+
                 let network_id = scene::get_node(nakama)
                     .api_client
                     .session_id
@@ -337,6 +377,15 @@ async fn main() {
                 next_scene = Scene::MatchmakingLobby;
             }
             Scene::MatchmakingLobby => {
+                stop_sound(whale_theme);
+                play_sound(
+                    fish_bowl,
+                    PlaySoundParams {
+                        looped: true,
+                        volume: 0.2,
+                    },
+                );
+
                 next_scene = gui::matchmaking_lobby(nakama).await;
             }
             Scene::Login => {

@@ -1,7 +1,7 @@
 "Fish Game" for Macroquad
 =====================
 
-![fishgame](https://user-images.githubusercontent.com/910977/106779317-7dbb4e00-660c-11eb-84e6-83c9f5e73758.gif)
+![fishgame](https://user-images.githubusercontent.com/910977/114977971-304e2f00-9e4e-11eb-83ed-707abb895466.gif)
 
 
 **"Fish Game" for Macroquad** is an online multiplayer game, created as a
@@ -25,7 +25,7 @@ To get it, follow [rustup.rs](https://rustup.rs/) instructions.
 On web, windows and mac os no other external depdendecies are required.
 On linux followed libs may be required: 
 ```
-apt install libx11-dev libxi-dev libgl1-mesa-dev
+apt install libx11-dev libxi-dev libgl1-mesa-dev libasound2-dev
 ```
 
 ### Running the game:

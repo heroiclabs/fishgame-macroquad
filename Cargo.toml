@@ -6,32 +6,12 @@ edition = "2018"
 
 [dependencies]
 nanoserde = "0.1"
-macroquad = { git = "https://github.com/not-fl3/macroquad.git" }
-physics-platformer = { git = "https://github.com/not-fl3/macroquad.git" }
-macroquad-tiled = { git = "https://github.com/not-fl3/macroquad.git" }
-macroquad-particles = { git = "https://github.com/not-fl3/macroquad.git", features = ["nanoserde"] }
-#macroquad-profiler = { git = "https://github.com/not-fl3/macroquad.git" }
+macroquad = "0.3"
+macroquad-platformer = "0.1"
+macroquad-tiled = "0.1"
+macroquad-particles = {version = "0.1", features = ["nanoserde"] }
 bitfield = "0.13"
-nakama-rs = { git = "https://github.com/not-fl3/nakama-rs.git" }
+nakama-rs = "0.1"
 base64 = "0.13"
-wasm_plugin_host = "0.1.2"
+wasm_plugin_host = { version = "0.1.4", default-features = false, features = ["serialize_nanoserde_json"] }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-sapp-jsutils = "0.1"
-
-[patch.crates-io]
-macroquad = { git = "https://github.com/not-fl3/macroquad.git" }
-
-#[patch.'https://github.com/not-fl3/macroquad.git']
-#macroquad = { path = "../macroquad" }
-#macroquad-tiled = { path = "../macroquad/tiled" }
-
-# macroquad-particles = { path = "../macroquad/particles" }
-# physics-platformer = { path = "../macroquad/physics-platformer" }
-# macroquad-profiler = { path = "../macroquad/profiler" }
-
-#nanoserde = { path = "../nanoserde" }
-#macroquad = { path = "../macroquad" }
-# miniquad = { path = "../miniquad" }
-# megaui = { path = "../megaui" }
-# sapp-jsutils = { path = "../sapp-jsutils" }

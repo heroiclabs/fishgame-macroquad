@@ -4,44 +4,30 @@ use macroquad_particles as particles;
 use macroquad_tiled as tiled;
 
 use macroquad::{
-    experimental::{collections::storage, coroutines::start_coroutine, scene},
-    telemetry, ui,
+    audio::{load_sound, play_sound, stop_sound, PlaySoundParams, Sound},
+    experimental::{
+        collections::storage,
+        coroutines::start_coroutine,
+        scene::{self, Handle},
+    },
+    ui,
 };
 use nanoserde::DeJson;
 
 use particles::EmittersCache;
-use physics_platformer::World as CollisionWorld;
+use macroquad_platformer::World as CollisionWorld;
 
 mod credentials {
     include!(concat!(env!("OUT_DIR"), "/nakama_credentials.rs"));
 }
 
-mod bullets;
-mod camera;
-mod decoration;
-mod global_events;
+mod nodes;
 mod gui;
-mod level_background;
-mod net_syncronizer;
-mod pickup;
-mod player;
-mod remote_player;
 mod plugin;
-mod item;
 
-use bullets::Bullets;
-use camera::Camera;
-use decoration::Decoration;
-use global_events::GlobalEvents;
 use gui::Scene;
-use level_background::LevelBackground;
-use nakama::ApiClient;
-use net_syncronizer::NetSyncronizer;
-use pickup::Pickup;
-use player::Player;
-use remote_player::RemotePlayer;
 use plugin::PluginRegistry;
-use item::ItemImplementationRegistry;
+use nodes::ItemImplementationRegistry;
 
 pub mod consts {
     pub const GRAVITY: f32 = 900.0;
@@ -52,10 +38,6 @@ pub mod consts {
     pub const JUMP_GRACE_TIME: f32 = 0.15;
     pub const NETWORK_FPS: f32 = 15.0;
     pub const GUN_THROWBACK: f32 = 700.0;
-}
-
-pub mod nakama {
-    pub use nakama_rs::api_client::{ApiClient, Event};
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -85,6 +67,10 @@ struct Resources {
     background_03: Texture2D,
     background_04: Texture2D,
     decorations: Texture2D,
+    jump_sound: Sound,
+    shoot_sound: Sound,
+    sword_sound: Sound,
+    pickup_sound: Sound,
 }
 
 pub const HIT_FX: &'static str = r#"{"local_coords":false,"emission_shape":{"Point":[]},"one_shot":true,"lifetime":0.2,"lifetime_randomness":0,"explosiveness":0.65,"amount":41,"shape":{"Circle":{"subdivisions":10}},"emitting":false,"initial_direction":{"x":0,"y":-1},"initial_direction_spread":6.2831855,"initial_velocity":73.9,"initial_velocity_randomness":0.2,"linear_accel":0,"size":5.6000004,"size_randomness":0.4,"blend_mode":{"Alpha":[]},"colors_curve":{"start":{"r":0.8200004,"g":1,"b":0.31818175,"a":1},"mid":{"r":0.71000004,"g":0.36210018,"b":0,"a":1},"end":{"r":0.02,"g":0,"b":0.000000007152557,"a":1}},"gravity":{"x":0,"y":0},"post_processing":{}}
@@ -97,14 +83,39 @@ pub const WEAPON_DISARM_FX: &'static str = r#"{"local_coords":false,"emission_sh
 "#;
 
 impl Resources {
-    async fn new() -> Resources {
-        let mut collision_world = CollisionWorld::new();
+    // TODO: fix macroquad error type here
+    async fn new() -> Result<Resources, macroquad::prelude::FileError> {
+        let tileset = load_texture("assets/tileset.png").await?;
+        tileset.set_filter(FilterMode::Nearest);
 
-        let tileset = load_texture("assets/tileset.png").await;
-        set_texture_filter(tileset, FilterMode::Nearest);
+        let decorations = load_texture("assets/decorations1.png").await?;
+        decorations.set_filter(FilterMode::Nearest);
 
-        let decorations = load_texture("assets/decorations1.png").await;
-        set_texture_filter(decorations, FilterMode::Nearest);
+        let whale = load_texture("assets/Whale/Whale(76x66)(Orange).png").await?;
+        whale.set_filter(FilterMode::Nearest);
+
+        let gun = load_texture("assets/Whale/Gun(92x32).png").await?;
+        gun.set_filter(FilterMode::Nearest);
+
+        let sword = load_texture("assets/Whale/Sword(65x93).png").await?;
+        sword.set_filter(FilterMode::Nearest);
+
+        let background_01 = load_texture("assets/Background/01.png").await?;
+        background_01.set_filter(FilterMode::Nearest);
+
+        let background_02 = load_texture("assets/Background/02.png").await?;
+        background_02.set_filter(FilterMode::Nearest);
+
+        let background_03 = load_texture("assets/Background/03.png").await?;
+        background_03.set_filter(FilterMode::Nearest);
+
+        let background_04 = load_texture("assets/Background/04.png").await?;
+        background_04.set_filter(FilterMode::Nearest);
+
+        let jump_sound = load_sound("assets/sounds/jump.wav").await?;
+        let shoot_sound = load_sound("assets/sounds/shoot.ogg").await?;
+        let sword_sound = load_sound("assets/sounds/sword.wav").await?;
+        let pickup_sound = load_sound("assets/sounds/pickup.wav").await?;
 
         let tiled_map_json = load_string("assets/map.json").await.unwrap();
         let tiled_map = tiled::load_map(
@@ -118,6 +129,7 @@ impl Resources {
         for (_x, _y, tile) in tiled_map.tiles("main layer", None) {
             static_colliders.push(tile.is_some());
         }
+        let mut collision_world = CollisionWorld::new();
         collision_world.add_static_tiled_layer(
             static_colliders,
             32.,
@@ -132,28 +144,7 @@ impl Resources {
         let disarm_fxses =
             EmittersCache::new(nanoserde::DeJson::deserialize_json(WEAPON_DISARM_FX).unwrap());
 
-        let whale = load_texture("assets/Whale/Whale(76x66)(Orange).png").await;
-        set_texture_filter(whale, FilterMode::Nearest);
-
-        let gun = load_texture("assets/Whale/Gun(92x32).png").await;
-        set_texture_filter(gun, FilterMode::Nearest);
-
-        let sword = load_texture("assets/Whale/Sword(65x93).png").await;
-        set_texture_filter(sword, FilterMode::Nearest);
-
-        let background_01 = load_texture("assets/Background/01.png").await;
-        set_texture_filter(background_01, FilterMode::Nearest);
-
-        let background_02 = load_texture("assets/Background/02.png").await;
-        set_texture_filter(background_02, FilterMode::Nearest);
-
-        let background_03 = load_texture("assets/Background/03.png").await;
-        set_texture_filter(background_03, FilterMode::Nearest);
-
-        let background_04 = load_texture("assets/Background/04.png").await;
-        set_texture_filter(background_04, FilterMode::Nearest);
-
-        Resources {
+        Ok(Resources {
             hit_fxses,
             explosion_fxses,
             disarm_fxses,
@@ -167,18 +158,24 @@ impl Resources {
             background_03,
             background_04,
             decorations,
-        }
+            jump_sound,
+            shoot_sound,
+            sword_sound,
+            pickup_sound,
+        })
     }
 }
 
-async fn join_quick_match() {
+async fn join_quick_match(nakama: Handle<nodes::Nakama>) {
     let authentication = start_coroutine(async move {
         {
-            let mut nakama = storage::get_mut::<ApiClient>().unwrap();
-            nakama.authenticate("super@heroes.com", "batsignal");
+            let mut nakama = scene::get_node(nakama);
+            nakama
+                .api_client
+                .authenticate("super@heroes.com", "batsignal");
         }
 
-        while storage::get::<ApiClient>().unwrap().authenticated() == false {
+        while scene::get_node(nakama).api_client.authenticated() == false {
             next_frame().await;
         }
     });
@@ -202,15 +199,14 @@ async fn join_quick_match() {
     warn!("authenticated!");
 
     {
-        let mut nakama = storage::get_mut::<ApiClient>().unwrap();
-
-        nakama.rpc(
+        let api_client = &mut scene::get_node(nakama).api_client;
+        api_client.rpc(
             "rpc_macroquad_find_match",
             "\"{\\\"kind\\\":\\\"public\\\",\\\"engine\\\":\\\"macroquad\\\"}\"",
         );
     }
     let response = loop {
-        if let Some(response) = storage::get::<ApiClient>().unwrap().rpc_response() {
+        if let Some(response) = scene::get_node(nakama).api_client.rpc_response() {
             break response;
         }
         next_frame().await;
@@ -222,71 +218,97 @@ async fn join_quick_match() {
         match_id: String,
     }
     let response: Response = DeJson::deserialize_json(&response).unwrap();
-    storage::get_mut::<ApiClient>()
-        .unwrap()
+    scene::get_node(nakama)
+        .api_client
         .socket_join_match_by_id(&response.match_id);
 
-    while storage::get::<ApiClient>().unwrap().session_id.is_none() {
+    while scene::get_node(nakama).api_client.session_id.is_none() {
         next_frame().await;
     }
 }
 
-async fn network_game(game_type: GameType, network_id: String) {
-    let resources = Resources::new().await;
+async fn network_game(nakama: Handle<nodes::Nakama>, game_type: GameType, network_id: String) {
+    use nodes::{
+        Bullets, Camera, Decoration, Fxses, GlobalEvents, LevelBackground, NakamaRealtimeGame,
+        Player,
+    };
 
+    let resources_loading = start_coroutine(async move {
+        let resources = Resources::new().await.unwrap();
+        storage::store(resources);
+    });
+
+    while resources_loading.is_done() == false {
+        clear_background(BLACK);
+        draw_text(
+            &format!(
+                "Loading resources {}",
+                ".".repeat(((get_time() * 2.0) as usize) % 4)
+            ),
+            screen_width() / 2.0 - 160.0,
+            screen_height() / 2.0,
+            40.,
+            WHITE,
+        );
+
+        next_frame().await;
+    }
+
+    let battle_music = load_sound("assets/music/across the pond.ogg")
+        .await
+        .unwrap();
+
+    play_sound(
+        battle_music,
+        PlaySoundParams {
+            looped: true,
+            volume: 0.6,
+        },
+    );
+
+    let resources = storage::get::<Resources>();
     let w = resources.tiled_map.raw_tiled_map.tilewidth * resources.tiled_map.raw_tiled_map.width;
     let h = resources.tiled_map.raw_tiled_map.tileheight * resources.tiled_map.raw_tiled_map.height;
-
-    storage::store(resources);
 
     let mut item_registry = ItemImplementationRegistry::default();
     let plugin_registry = PluginRegistry::load("plugins/", &mut item_registry);
     storage::store(item_registry);
     storage::store(plugin_registry);
 
-    scene::add_node(LevelBackground::new());
+    let level_background = scene::add_node(LevelBackground::new());
 
-    for object in &storage::get::<Resources>().unwrap().tiled_map.layers["decorations"].objects {
+    for object in &resources.tiled_map.layers["decorations"].objects {
         scene::add_node(Decoration::new(
             vec2(object.world_x, object.world_y),
             object.gid.unwrap(),
         ));
     }
+    drop(resources);
 
-    let player = scene::add_node(Player::new(game_type == GameType::Deathmatch));
+    let nakama_realtime = scene::add_node(NakamaRealtimeGame::new(nakama, game_type, network_id));
+
+    let player = scene::add_node(Player::new(
+        game_type == GameType::Deathmatch,
+        nakama,
+        nakama_realtime,
+    ));
 
     scene::add_node(Bullets::new(player));
-    let net_syncronizer = scene::add_node(NetSyncronizer::new(network_id, game_type));
-    scene::add_node(GlobalEvents::new(player, net_syncronizer));
+    scene::add_node(GlobalEvents::new(player, nakama_realtime));
 
-    let mut camera = Camera::new(Rect::new(0.0, 0.0, w as f32, h as f32), 400.0);
+    let camera = scene::add_node(Camera::new(
+        Rect::new(0.0, 0.0, w as f32, h as f32),
+        400.0,
+        player,
+    ));
+    scene::get_node(level_background).camera = camera;
+    scene::add_node(Fxses { camera });
 
     loop {
         clear_background(BLACK);
 
-        let pos = { scene::get_node::<Player>(player).unwrap().pos() };
-
-        let cam = camera.update(pos);
-        set_camera(cam);
-
-        storage::store(cam.target);
-
-        scene::update();
-
         {
-            let _z = telemetry::ZoneGuard::new("draw particles");
-
-            let mut resources = storage::get_mut::<Resources>().unwrap();
-
-            resources.hit_fxses.draw();
-            resources.explosion_fxses.draw();
-            resources.disarm_fxses.draw();
-        }
-
-        set_default_camera();
-
-        {
-            let resources = storage::get_mut::<gui::GuiResources>().unwrap();
+            let resources = storage::get_mut::<gui::GuiResources>();
 
             ui::root_ui().push_skin(&resources.login_skin);
 
@@ -294,6 +316,7 @@ async fn network_game(game_type: GameType, network_id: String) {
                 || scene::find_node_by_type::<Player>().unwrap().want_quit
             {
                 ui::root_ui().pop_skin();
+                stop_sound(battle_music);
                 return;
             }
             ui::root_ui().pop_skin();
@@ -307,87 +330,98 @@ async fn network_game(game_type: GameType, network_id: String) {
     }
 }
 
-fn start_nakama_tick_loop() {
-    let tick = async move {
-        loop {
-            storage::get_mut::<ApiClient>().unwrap().tick();
-            next_frame().await;
-        }
-    };
-    start_coroutine(tick);
-}
-
 #[macroquad::main("Fishgame")]
 async fn main() {
-    storage::store(ApiClient::new(
+    let nakama = scene::add_node(nodes::Nakama::new(
         credentials::NAKAMA_KEY,
         credentials::NAKAMA_SERVER,
         credentials::NAKAMA_PORT,
         credentials::NAKAMA_PROTOCOL,
     ));
 
+    let whale_theme = load_sound("assets/music/whale theme.ogg").await.unwrap();
+    let fish_bowl = load_sound("assets/music/fish bowl.ogg").await.unwrap();
+
     let gui_resources = gui::GuiResources::new();
     storage::store(gui_resources);
 
-    start_nakama_tick_loop();
-
     //let mut next_scene = gui::matchmaking_lobby().await;
-    let mut next_scene = gui::main_menu().await;
+    let mut next_scene = Scene::MainMenu;
     loop {
         match next_scene {
             Scene::MainMenu => {
+                play_sound(
+                    whale_theme,
+                    PlaySoundParams {
+                        looped: true,
+                        volume: 0.6,
+                    },
+                );
                 next_scene = gui::main_menu().await;
             }
             Scene::QuickGame => {
-                join_quick_match().await;
-                let network_id = storage::get::<ApiClient>()
-                    .unwrap()
+                stop_sound(whale_theme);
+
+                join_quick_match(nakama).await;
+                let network_id = scene::get_node(nakama)
+                    .api_client
                     .session_id
                     .clone()
                     .unwrap();
-                network_game(GameType::Deathmatch, network_id).await;
+
+                network_game(nakama, GameType::Deathmatch, network_id).await;
+
                 let match_leave = {
-                    let mut nakama = storage::get_mut::<ApiClient>().unwrap();
+                    let nakama = &mut scene::get_node(nakama).api_client;
                     nakama.socket_leave_match()
                 };
-                while storage::get::<ApiClient>()
-                    .unwrap()
+                while scene::get_node(nakama)
+                    .api_client
                     .socket_response(match_leave)
                     .is_none()
                 {
                     next_frame().await;
                 }
-                storage::get_mut::<ApiClient>().unwrap().logout();
+                scene::get_node(nakama).api_client.logout();
 
                 scene::clear();
-                start_nakama_tick_loop();
 
                 next_scene = Scene::MainMenu;
             }
             Scene::MatchmakingGame { private } => {
-                let network_id = storage::get::<ApiClient>()
-                    .unwrap()
+                stop_sound(fish_bowl);
+
+                let network_id = scene::get_node(nakama)
+                    .api_client
                     .session_id
                     .clone()
                     .unwrap();
 
-                network_game(GameType::LastFishStanding { private }, network_id).await;
+                network_game(nakama, GameType::LastFishStanding { private }, network_id).await;
                 scene::clear();
-                start_nakama_tick_loop();
 
                 next_scene = Scene::MatchmakingLobby;
             }
             Scene::MatchmakingLobby => {
-                next_scene = gui::matchmaking_lobby().await;
+                stop_sound(whale_theme);
+                play_sound(
+                    fish_bowl,
+                    PlaySoundParams {
+                        looped: true,
+                        volume: 0.2,
+                    },
+                );
+
+                next_scene = gui::matchmaking_lobby(nakama).await;
             }
             Scene::Login => {
-                next_scene = gui::authentication().await;
+                next_scene = gui::authentication(nakama).await;
             }
             Scene::WaitingForMatchmaking { private } => {
-                next_scene = gui::waiting_for_matchmaking(private).await;
+                next_scene = gui::waitscreen(nakama, private).await;
             }
             Scene::Credits => {
-                unimplemented!()
+                next_scene = gui::credits().await;
             }
         }
     }

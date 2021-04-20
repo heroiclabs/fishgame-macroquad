@@ -7,10 +7,11 @@ use macroquad::{
     texture::Image,
     experimental::animation::AnimatedSprite,
 };
+use nanoserde::DeJson;
 
 use wasm_plugin_host::WasmPlugin;
 
-use crate::item::{ItemType, ItemImplementationRegistry};
+use crate::nodes::{ItemType, ItemImplementationRegistry};
 
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
@@ -23,7 +24,7 @@ pub struct PluginDescription {
     items: Vec<ItemDescription>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, DeJson)]
 pub struct ItemDescription {
     pub item_type: ItemType,
     pub display_name: String,
@@ -43,7 +44,7 @@ impl PluginRegistry {
         for entry in path.as_ref().read_dir().expect("Unable to read plugins directory") {
             if let Ok(entry) = entry {
                 if entry.path().to_str().unwrap().contains(".wasm") {
-                    let mut plugin = wasm_plugin_host::WasmPlugin::load(entry.path()).expect(&format!("Failed to load plugin {:?}", entry.path()));
+                    let mut plugin = wasm_plugin_host::WasmPluginBuilder::from_file(entry.path()).expect(&format!("Failed to load plugin {:?}", entry.path())).finish().unwrap();
                     let description: PluginDescription = plugin.call_function("plugin_description").expect(&format!("Failed to call 'plugin_description' on plugin {:?}", entry.path()));
 
                     for item in &description.items {

@@ -28,11 +28,23 @@ On linux followed libs may be required:
 apt install libx11-dev libxi-dev libgl1-mesa-dev libasound2-dev
 ```
 
+### Nakama server
+
+To run the Fish game locally Nakama server is required.
+
+The easiest way to setup a Nakama server locally for testing/learning purposes is [via Docker](https://heroiclabs.com/docs/install-docker-quickstart/), and in fact, there is a `docker-compose.yml` included in the source code of "Fish Game" (/docker/docker-compose.yml).
+
+So, if you have [Docker Compose](https://docs.docker.com/compose/install/) installed on your system, all you need to do is navigate to "/docker" directory and run:
+
+```
+docker-compose up
+```
+
+This will automatically pull all Fish game .lua modules and will gives a ready to connect nakama server. 
+
 ### Running the game:
 
 ### Native PC build: 
-
-*note that nakama networking is not yet supported on PC and PC build is intenteded only for single player dev builds*
 
 ```
 cargo run --release

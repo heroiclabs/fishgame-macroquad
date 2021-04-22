@@ -9,11 +9,11 @@ use macroquad::{
 
 use crate::{
     nodes::{
-        item::ItemType,
         player::{Fish, Weapon},
     },
     Resources,
 };
+use plugin_api::ItemType;
 
 pub struct RemotePlayer {
     pub username: String,
@@ -50,7 +50,7 @@ impl RemotePlayer {
     }
 
     pub fn weapon(&self) -> Option<ItemType> {
-        self.fish.weapon.map(|weapon| weapon.item_type)
+        self.fish.weapon.as_ref().map(|weapon| weapon.item_type)
     }
 
     pub fn set_pos(&mut self, pos: Vec2) {

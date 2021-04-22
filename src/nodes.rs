@@ -20,4 +20,4 @@ pub use nakama::{Nakama, NakamaRealtimeGame};
 pub use pickup::Pickup;
 pub use player::Player;
 pub use remote_player::RemotePlayer;
-pub use item::{ItemType, ItemImplementationRegistry};
+pub use item::{ItemImplementationRegistry};

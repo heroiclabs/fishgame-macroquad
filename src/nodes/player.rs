@@ -15,9 +15,10 @@ use macroquad_platformer::Actor;
 
 use crate::{
     consts,
-    nodes::{item::{ItemType, ItemInstanceId, ItemIdSource, ItemImplementationRegistry}, Nakama, NakamaRealtimeGame, Pickup},
+    nodes::{item::{ItemInstanceId, ItemIdSource, ItemImplementationRegistry}, Nakama, NakamaRealtimeGame, Pickup},
     Resources,
 };
+use plugin_api::ItemType;
 
 #[derive(Default, Debug, Clone)]
 pub struct Input {
@@ -127,7 +128,7 @@ impl Fish {
     }
 
     pub fn pick_weapon(&mut self, item_type: ItemType) {
-        let item_id_source = storage::get_mut::<ItemIdSource>();
+        let mut item_id_source = storage::get_mut::<ItemIdSource>();
         let item_registry = storage::get::<ItemImplementationRegistry>();
         let item_impl = item_registry.get_implementation(item_type).expect("Invalid ItemType");
         self.weapon = Some(Weapon {
@@ -310,7 +311,7 @@ impl Player {
     }
 
     pub fn weapon(&self) -> Option<ItemType> {
-        self.fish.weapon.map(|weapon| weapon.item_type)
+        self.fish.weapon.as_ref().map(|weapon| weapon.item_type)
     }
 
     fn death_coroutine(node: &mut RefMut<Player>) -> Coroutine {
@@ -458,7 +459,7 @@ impl Player {
         if self.is_dead() {
             return;
         }
-        if let Some(weapon) = self.fish.weapon {
+        if let Some(weapon) = &self.fish.weapon {
             if let Some((remaining, max_uses)) = weapon.uses_remaining() {
                 let full_color = Color::new(0.8, 0.9, 1.0, 1.0);
                 let empty_color = Color::new(0.8, 0.9, 1.0, 0.8);

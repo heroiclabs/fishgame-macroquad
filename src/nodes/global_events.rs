@@ -7,9 +7,10 @@ use macroquad::{
 };
 
 use crate::{
-    nodes::{item::{ItemType, ItemImplementationRegistry}, NakamaRealtimeGame, Pickup, Player, RemotePlayer},
+    nodes::{item::{ItemImplementationRegistry}, NakamaRealtimeGame, Pickup, Player, RemotePlayer},
     Resources,
 };
+use plugin_api::ItemType;
 
 pub struct GlobalEvents {
     last_spawn_time: f64,

@@ -523,6 +523,7 @@ dependencies = [
  "macroquad-tiled",
  "nakama-rs",
  "nanoserde",
+ "plugin_api",
  "wasm_plugin_host",
 ]
 
@@ -1355,6 +1356,13 @@ name = "pkg-config"
 version = "0.3.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3831453b3449ceb48b6d9c7ad7c96d5ea673e9b470a1dc578c2ce6521230884c"
+
+[[package]]
+name = "plugin_api"
+version = "0.1.0"
+dependencies = [
+ "nanoserde",
+]
 
 [[package]]
 name = "png"

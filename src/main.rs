@@ -421,7 +421,7 @@ async fn main() {
                 next_scene = gui::waitscreen(nakama, private).await;
             }
             Scene::Credits => {
-                next_scene = gui::credits().await;
+                //next_scene = gui::credits().await;
             }
         }
     }

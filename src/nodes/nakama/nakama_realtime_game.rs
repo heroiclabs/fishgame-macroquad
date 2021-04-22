@@ -14,9 +14,10 @@ use nakama_rs::api_client::Event;
 
 use crate::{
     consts,
-    nodes::{item::ItemType, Nakama, Pickup, Player, RemotePlayer},
+    nodes::{Nakama, Pickup, Player, RemotePlayer},
     GameType, Resources,
 };
+use plugin_api::ItemType;
 
 struct NetworkCache {
     sent_position: [u8; 4],

@@ -7,7 +7,8 @@ use macroquad::{
     prelude::*,
 };
 
-use crate::{Resources, nodes::item::{ItemType, ItemImplementationRegistry}};
+use crate::{Resources, nodes::item::{ItemImplementationRegistry}};
+use plugin_api::ItemType;
 
 pub struct Pickup {
     pub pos: Vec2,

@@ -14,4 +14,5 @@ bitfield = "0.13"
 nakama-rs = "0.1"
 base64 = "0.13"
 wasm_plugin_host = { version = "0.1.4", default-features = false, features = ["serialize_nanoserde_json"] }
+plugin_api = { path = "./plugin_api" }
 

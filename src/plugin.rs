@@ -63,4 +63,8 @@ impl PluginRegistry {
 
         PluginRegistry(plugins)
     }
+
+    pub(crate) fn get_plugin(&mut self, plugin_id: PluginId) -> Option<&mut WasmPlugin> {
+        self.0.get_mut(&plugin_id).map(|(p, _)| p)
+    }
 }

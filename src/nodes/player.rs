@@ -15,10 +15,11 @@ use macroquad_platformer::Actor;
 
 use crate::{
     consts,
-    nodes::{item::{ItemInstanceId, ItemIdSource, ItemImplementationRegistry}, Nakama, NakamaRealtimeGame, Pickup},
+    nodes::{item::{ItemIdSource, ItemImplementationRegistry}, Nakama, NakamaRealtimeGame, Pickup},
     Resources,
 };
-use plugin_api::ItemType;
+
+use plugin_api::{ItemType, ItemInstanceId};
 
 #[derive(Default, Debug, Clone)]
 pub struct Input {
@@ -31,14 +32,51 @@ pub struct Input {
 pub struct Weapon {
     pub item_type: ItemType,
     item_id: ItemInstanceId,
+    texture: Texture2D,
+    mount_pos_right: Vec2,
+    mount_pos_left: Vec2,
     sprite: AnimatedSprite,
     fx_sprite: AnimatedSprite,
     fx: bool,
 }
 
+impl Drop for Weapon {
+    fn drop(&mut self) {
+        let item_registry = storage::get::<ItemImplementationRegistry>();
+        let item_impl = item_registry.get_implementation(self.item_type).expect("Invalid ItemType");
+        item_impl.destroy(self.item_id);
+    }
+}
+
 impl Weapon {
+    fn new(item_type: ItemType) -> Self {
+        let mut item_id_source = storage::get_mut::<ItemIdSource>();
+        let item_registry = storage::get::<ItemImplementationRegistry>();
+        let item_impl = item_registry.get_implementation(item_type).expect("Invalid ItemType");
+        let instance_id = item_id_source.next_id();
+        item_impl.construct(instance_id);
+        Self {
+            item_type,
+            item_id: instance_id,
+            texture: item_impl.texture,
+            mount_pos_right: item_impl.mount_pos_right,
+            mount_pos_left: item_impl.mount_pos_left,
+            sprite: item_impl.sprite.clone(),
+            fx_sprite: item_impl.fx_sprite.clone(),
+            fx: false,
+        }
+    }
+
     fn uses_remaining(&self) -> Option<(u32, u32)> {
-        todo!("delegate to plugin")
+        let item_registry = storage::get::<ItemImplementationRegistry>();
+        let implementation = item_registry.get_implementation(self.item_type).unwrap();
+        implementation.uses_remaining(self.item_id)
+    }
+
+    fn update_shoot(&self) -> bool {
+        let item_registry = storage::get::<ItemImplementationRegistry>();
+        let implementation = item_registry.get_implementation(self.item_type).unwrap();
+        implementation.update_shoot(self.item_id)
     }
 }
 
@@ -128,16 +166,7 @@ impl Fish {
     }
 
     pub fn pick_weapon(&mut self, item_type: ItemType) {
-        let mut item_id_source = storage::get_mut::<ItemIdSource>();
-        let item_registry = storage::get::<ItemImplementationRegistry>();
-        let item_impl = item_registry.get_implementation(item_type).expect("Invalid ItemType");
-        self.weapon = Some(Weapon {
-            item_type,
-            item_id: item_id_source.next_id(),
-            sprite: item_impl.sprite.clone(),
-            fx_sprite: item_impl.fx_sprite.clone(),
-            fx: false,
-        });
+        self.weapon = Some(Weapon::new(item_type));
         let resources = storage::get_mut::<Resources>();
         play_sound_once(resources.pickup_sound);
     }
@@ -183,16 +212,14 @@ impl Fish {
 
         if self.dead == false {
             if let Some(weapon) = &mut self.weapon {
-                let item_registry = storage::get::<ItemImplementationRegistry>();
-                let item_impl = item_registry.get_implementation(weapon.item_type).expect("Invalid ItemType");
                 let mount_pos = if self.facing {
-                    vec2(0., 16.)
+                    weapon.mount_pos_right
                 } else {
-                    vec2(-60., 16.)
+                    weapon.mount_pos_left
                 };
                 weapon.sprite.update();
                 draw_texture_ex(
-                    item_impl.texture,
+                    weapon.texture,
                     self.pos.x + mount_pos.x,
                     self.pos.y + mount_pos.y,
                     color::WHITE,
@@ -207,7 +234,7 @@ impl Fish {
                 if weapon.fx {
                     weapon.fx_sprite.update();
                     draw_texture_ex(
-                        item_impl.texture,
+                        weapon.texture,
                         self.pos.x + mount_pos.x,
                         self.pos.y + mount_pos.y,
                         color::WHITE,
@@ -381,7 +408,14 @@ impl Player {
     }
 
     fn update_shoot(node: &mut RefMut<Player>, _dt: f32) {
-        todo!("actual update");
+        if let Some(weapon) = &node.fish.weapon {
+            let done = weapon.update_shoot();
+            if done {
+                node.state_machine.set_state(Self::ST_NORMAL);
+            }
+        } else {
+            node.state_machine.set_state(Self::ST_NORMAL);
+        }
     }
 
     fn update_aftermatch(node: &mut RefMut<Player>, _dt: f32) {

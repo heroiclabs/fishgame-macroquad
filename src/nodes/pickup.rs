@@ -84,8 +84,8 @@ impl scene::Node for Pickup {
             node.pos.y + 8.,
             WHITE,
             DrawTextureParams {
-                source: Some(Rect::new(0.0, 0.0, 64., 32.)),
-                dest_size: Some(vec2(32., 16.)),
+                source: Some(item_impl.pickup_src),
+                dest_size: Some(item_impl.pickup_dst),
                 ..Default::default()
             },
         );

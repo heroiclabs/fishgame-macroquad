@@ -27,7 +27,7 @@ mod plugin;
 
 use gui::Scene;
 use plugin::PluginRegistry;
-use nodes::ItemImplementationRegistry;
+use nodes::{ItemIdSource, ItemImplementationRegistry};
 
 pub mod consts {
     pub const GRAVITY: f32 = 900.0;
@@ -274,6 +274,7 @@ async fn network_game(nakama: Handle<nodes::Nakama>, game_type: GameType, networ
     let plugin_registry = PluginRegistry::load("plugins/", &mut item_registry);
     storage::store(item_registry);
     storage::store(plugin_registry);
+    storage::store(ItemIdSource::default());
 
     let level_background = scene::add_node(LevelBackground::new());
 
@@ -421,7 +422,7 @@ async fn main() {
                 next_scene = gui::waitscreen(nakama, private).await;
             }
             Scene::Credits => {
-                //next_scene = gui::credits().await;
+                next_scene = gui::credits().await;
             }
         }
     }

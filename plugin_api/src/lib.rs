@@ -1,47 +1,86 @@
-use nanoserde::{DeJson, SerJson};
+use serde::{Serialize, Deserialize};
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, DeJson, SerJson)]
-pub struct ItemType(u64);
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ItemType {
+    id: u64
+}
+
+impl ItemType {
+    pub const fn new(id: u64) -> Self {
+        Self { id }
+    }
+}
+
 impl From<ItemType> for u64 {
     fn from(item_type: ItemType) -> u64 {
-        item_type.0
+        item_type.id
     }
 }
+
 impl From<u64> for ItemType {
-    fn from(item_type: u64) -> ItemType {
-        ItemType(item_type)
+    fn from(item_type: u64) -> ItemType{
+        ItemType { id: item_type }
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, DeJson, SerJson)]
-pub struct PluginId(pub u64);
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ItemInstanceId {
+    pub id: u64
+}
 
-#[derive(Clone, DeJson, SerJson)]
+impl ItemInstanceId {
+    pub const fn new(id: u64) -> Self {
+        Self { id }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PluginId {
+    id: u64
+}
+
+impl PluginId {
+    pub const fn new(id: u64) -> Self {
+        Self { id }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct PluginDescription {
     pub plugin_id: PluginId,
     pub display_name: String,
     pub items: Vec<ItemDescription>,
 }
 
-#[derive(Clone, DeJson, SerJson)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ItemDescription {
     pub item_type: ItemType,
     pub display_name: String,
     pub image: ImageDescription,
+    pub mount_pos_right: [f32; 2],
+    pub mount_pos_left: [f32; 2],
+    pub pickup_src: Rect,
+    pub pickup_dst: [f32; 2],
     pub sprite: AnimatedSpriteDescription,
     pub fx_sprite: AnimatedSpriteDescription,
 }
 
-// TODO: All these *Description structs could be replaced by adding the
-// DeJson and SerJson derives inside macroquad, maybe behind a feature gate.
-#[derive(Clone, DeJson, SerJson)]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Rect {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ImageDescription {
     pub bytes: Vec<u8>,
     pub width: u16,
     pub height: u16,
 }
 
-#[derive(Clone, DeJson, SerJson)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct AnimatedSpriteDescription {
     pub tile_width: u32,
     pub tile_height: u32,
@@ -49,7 +88,7 @@ pub struct AnimatedSpriteDescription {
     pub playing: bool,
 }
 
-#[derive(Clone, Debug, DeJson, SerJson)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AnimationDescription {
     pub name: String,
     pub row: u32,

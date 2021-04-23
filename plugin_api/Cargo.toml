@@ -5,4 +5,4 @@ authors = ["Alec Deason <alec@tinycountry.com>"]
 edition = "2018"
 
 [dependencies]
-nanoserde = "0.1"
+serde = { version = "1", features = ["derive"] }

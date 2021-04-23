@@ -9,4 +9,7 @@ edition = "2018"
 
 [dependencies]
 plugin_api = { path = "../plugin_api" }
-wasm_plugin_guest = { version = "0.1.3", default-features = false, features = ["serialize_nanoserde_json"] }
+wasm_plugin_guest = { version = "0.1.4", default-features = false, features = ["serialize_json"] }
+image = { version = "0.23", default-features = false, features = ["png"] }
+wee_alloc = "0.4.5"
+once_cell = "1.7.2"

@@ -63,9 +63,8 @@ impl ItemImplementation {
 
     pub(crate) fn update_shoot(&self, item_id: ItemInstanceId, fish: &mut Fish) -> bool {
         self.with_plugin(|p| {
-            p.game_api.lock().unwrap().set_current_fish(fish);
+            let _guard = p.game_api.set_current_fish(fish);
             let done = p.wasm_plugin.call_function_with_argument("update_shoot", &item_id).unwrap();
-            p.game_api.lock().unwrap().clear_current_fish();
             done
         })
     }

@@ -7,10 +7,9 @@ use macroquad::{
         animation::AnimatedSprite,
     },
 };
-use wasm_plugin_host::WasmPlugin;
 
 use plugin_api::{ItemType, PluginId, ItemDescription, ItemInstanceId};
-use crate::plugin::{image_from_desc, animated_sprite_from_desc, PluginRegistry};
+use crate::{nodes::Fish, plugin::{image_from_desc, animated_sprite_from_desc, PluginRegistry, Plugin}};
 
 
 pub(crate) struct ItemImplementation {
@@ -44,26 +43,31 @@ impl ItemImplementation {
         }
     }
 
-    fn with_plugin<R>(&self, f: impl Fn(&mut WasmPlugin) -> R) -> R {
+    fn with_plugin<R>(&self, mut f: impl FnMut(&mut Plugin) -> R) -> R {
         let mut plugin_registry = storage::get_mut::<PluginRegistry>();
         let plugin = plugin_registry.get_plugin(self.implementing_plugin).unwrap();
         f(plugin)
     }
 
     pub(crate) fn construct(&self, item_id: ItemInstanceId) {
-        self.with_plugin(|p| p.call_function_with_argument("new_instance", &(self.item_type, item_id)).unwrap())
+        self.with_plugin(|p| p.wasm_plugin.call_function_with_argument("new_instance", &(self.item_type, item_id)).unwrap())
     }
 
     pub(crate) fn destroy(&self, item_id: ItemInstanceId) {
-        self.with_plugin(|p| p.call_function_with_argument("destroy_instance", &item_id).unwrap())
+        self.with_plugin(|p| p.wasm_plugin.call_function_with_argument("destroy_instance", &item_id).unwrap())
     }
 
     pub(crate) fn uses_remaining(&self, item_id: ItemInstanceId) -> Option<(u32, u32)> {
-        self.with_plugin(|p| p.call_function_with_argument("uses_remaining", &item_id).unwrap())
+        self.with_plugin(|p| p.wasm_plugin.call_function_with_argument("uses_remaining", &item_id).unwrap())
     }
 
-    pub(crate) fn update_shoot(&self, item_id: ItemInstanceId) -> bool {
-        self.with_plugin(|p| p.call_function_with_argument("update_shoot", &item_id).unwrap())
+    pub(crate) fn update_shoot(&self, item_id: ItemInstanceId, fish: &mut Fish) -> bool {
+        self.with_plugin(|p| {
+            p.game_api.lock().unwrap().set_current_fish(fish);
+            let done = p.wasm_plugin.call_function_with_argument("update_shoot", &item_id).unwrap();
+            p.game_api.lock().unwrap().clear_current_fish();
+            done
+        })
     }
 }
 

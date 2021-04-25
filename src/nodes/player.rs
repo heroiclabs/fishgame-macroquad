@@ -73,21 +73,16 @@ impl Weapon {
         implementation.uses_remaining(self.item_id)
     }
 
-    fn update_shoot(&self) -> bool {
-        let item_registry = storage::get::<ItemImplementationRegistry>();
-        let implementation = item_registry.get_implementation(self.item_type).unwrap();
-        implementation.update_shoot(self.item_id)
-    }
 }
 
 pub struct Fish {
     fish_sprite: AnimatedSprite,
     pub collider: Actor,
-    pos: Vec2,
+    pub pos: Vec2,
     speed: Vec2,
     on_ground: bool,
     dead: bool,
-    facing: bool,
+    pub facing: bool,
     pub weapon: Option<Weapon>,
     input: Input,
 }
@@ -409,7 +404,10 @@ impl Player {
 
     fn update_shoot(node: &mut RefMut<Player>, _dt: f32) {
         if let Some(weapon) = &node.fish.weapon {
-            let done = weapon.update_shoot();
+            let item_registry = storage::get::<ItemImplementationRegistry>();
+            let implementation = item_registry.get_implementation(weapon.item_type).unwrap();
+            let item_id = weapon.item_id;
+            let done = implementation.update_shoot(item_id, &mut node.fish);
             if done {
                 node.state_machine.set_state(Self::ST_NORMAL);
             }

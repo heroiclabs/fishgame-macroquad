@@ -3,14 +3,27 @@ use std::{
     sync::Mutex, collections::HashMap,
 };
 
-use plugin_api::{ItemType, ImageDescription, AnimationDescription, AnimatedSpriteDescription, PluginDescription, PluginId, ItemDescription, Rect, ItemInstanceId};
+use plugin_api::{ItemType, ImageDescription, AnimationDescription, AnimatedSpriteDescription, PluginDescription, PluginId, ItemDescription, Rect, ItemInstanceId, import_game_api};
 
 use once_cell::sync::Lazy;
 
+// The Mutex here is really not necessary since this is guaranteed to be a single
+// threaded environment, I'm just avoiding writing unsafe blocks. A library for
+// writing these plugins could probably include a more efficient state store
+// that takes advantage of the single threadedness.
+//
+// An alternative design would be for the new_instance function to allocate state on
+// the heap and return a pointer which would then get passed back in when other
+// functions are called. I think I like having the non-pointer key and letting the
+// plugin interpret that however it sees fit but you could argue for the other version.
 static ITEMS: Lazy<Mutex<HashMap<ItemInstanceId, ItemState>>> = Lazy::new(Mutex::default);
 
 const GUN: ItemType = ItemType::new(9868317461196439167);
 const SWORD: ItemType = ItemType::new(11238048715746880612);
+
+pub const GUN_THROWBACK: f32 = 700.0;
+
+import_game_api!();
 
 enum ItemState {
     Gun(u32),
@@ -140,5 +153,19 @@ fn uses_remaining(item_id: ItemInstanceId) -> Option<(u32, u32)> {
 
 #[wasm_plugin_guest::export_function]
 fn update_shoot(item_id: ItemInstanceId) -> bool {
+    if let Some(item) = ITEMS.lock().unwrap().get(&item_id) {
+        match item {
+            ItemState::Gun(_) => gun_handler(),
+            ItemState::Sword => true,
+        }
+    } else {
+        true
+    }
+}
+
+fn gun_handler() -> bool {
+    spawn_bullet();
+    let mut speed = get_speed();
+    speed += GUN_THROWBACK * facing_dir();
     true
 }

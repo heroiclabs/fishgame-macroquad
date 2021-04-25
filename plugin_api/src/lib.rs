@@ -96,6 +96,15 @@ pub struct AnimationDescription {
     pub fps: u32,
 }
 
-pub struct GameApiContext {
+#[macro_export]
+macro_rules! import_game_api {
+    () => {
+        wasm_plugin_guest::import_functions! {
+            fn spawn_bullet();
+            fn set_sprite_fx(s: bool);
+            fn get_speed() -> f32;
+            fn set_speed(speed: f32);
+            fn facing_dir() -> f32;
+        }
+    };
 }
-

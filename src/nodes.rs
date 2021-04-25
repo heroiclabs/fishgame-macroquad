@@ -18,6 +18,6 @@ pub use global_events::GlobalEvents;
 pub use level_background::LevelBackground;
 pub use nakama::{Nakama, NakamaRealtimeGame};
 pub use pickup::Pickup;
-pub use player::Player;
+pub use player::{Player, Fish};
 pub use remote_player::RemotePlayer;
 pub use item::{ItemIdSource, ItemImplementationRegistry};

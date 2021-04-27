@@ -35,9 +35,9 @@ pub struct Weapon {
     texture: Texture2D,
     mount_pos_right: Vec2,
     mount_pos_left: Vec2,
-    sprite: AnimatedSprite,
-    fx_sprite: AnimatedSprite,
-    fx: bool,
+    pub sprite: AnimatedSprite,
+    pub fx_sprite: Option<AnimatedSprite>,
+    pub fx: bool,
 }
 
 impl Drop for Weapon {
@@ -79,7 +79,7 @@ pub struct Fish {
     fish_sprite: AnimatedSprite,
     pub collider: Actor,
     pub pos: Vec2,
-    speed: Vec2,
+    pub speed: Vec2,
     on_ground: bool,
     dead: bool,
     pub facing: bool,
@@ -227,19 +227,21 @@ impl Fish {
                 );
 
                 if weapon.fx {
-                    weapon.fx_sprite.update();
-                    draw_texture_ex(
-                        weapon.texture,
-                        self.pos.x + mount_pos.x,
-                        self.pos.y + mount_pos.y,
-                        color::WHITE,
-                        DrawTextureParams {
-                            source: Some(weapon.fx_sprite.frame().source_rect),
-                            dest_size: Some(weapon.fx_sprite.frame().dest_size),
-                            flip_x: !self.facing,
-                            ..Default::default()
-                        },
-                    );
+                    if let Some(sprite) = &mut weapon.fx_sprite {
+                        sprite.update();
+                        draw_texture_ex(
+                            weapon.texture,
+                            self.pos.x + mount_pos.x,
+                            self.pos.y + mount_pos.y,
+                            color::WHITE,
+                            DrawTextureParams {
+                                source: Some(sprite.frame().source_rect),
+                                dest_size: Some(sprite.frame().dest_size),
+                                flip_x: !self.facing,
+                                ..Default::default()
+                            },
+                        );
+                    }
                 }
             }
         }
@@ -409,6 +411,9 @@ impl Player {
             let item_id = weapon.item_id;
             let done = implementation.update_shoot(item_id, &mut node.fish);
             if done {
+                if let Some((0, _)) = implementation.uses_remaining(item_id) {
+                    node.fish.weapon.take();
+                }
                 node.state_machine.set_state(Self::ST_NORMAL);
             }
         } else {

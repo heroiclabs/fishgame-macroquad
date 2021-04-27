@@ -74,11 +74,11 @@ impl GameApi {
         self.current_fish.lock().unwrap().take();
     }
 
-    fn with_current_fish(&self, f: impl Fn(&mut Fish)) {
+    fn with_current_fish<R>(&self, f: impl Fn(&mut Fish) -> R) -> R {
         let fish_guard = self.current_fish.lock().unwrap();
         let fish_ptr: *mut Fish = fish_guard.unwrap();
         let fish_ref = unsafe { fish_ptr.as_mut().unwrap() };
-        f(fish_ref);
+        f(fish_ref)
     }
 
     fn spawn_bullet(&self) {
@@ -87,15 +87,68 @@ impl GameApi {
             bullets.spawn_bullet(fish.pos, fish.facing);
         });
     }
+
     fn set_sprite_fx(&self, s: bool) {
+        self.with_current_fish(|fish| {
+            if let Some(weapon) = &mut fish.weapon {
+                weapon.fx = s;
+            }
+        });
     }
-    fn get_speed(&self) -> f32 {
-        0.0
+
+    fn get_speed(&self) -> [f32; 2] {
+        self.with_current_fish(|fish| {
+            [fish.speed.x, fish.speed.y]
+        })
     }
-    fn set_speed(&self, speed: f32) {
+
+    fn set_speed(&self, speed: [f32; 2]) {
+        self.with_current_fish(|fish| {
+            fish.speed.x = speed[0];
+            fish.speed.y = speed[1];
+        })
     }
+
+    fn set_sprite_animation(&self, animation: usize) {
+        self.with_current_fish(|fish| {
+            if let Some(weapon) = &mut fish.weapon {
+                weapon.sprite.set_animation(animation);
+            }
+        })
+    }
+
+    fn set_fx_sprite_animation(&self, animation: usize) {
+        self.with_current_fish(|fish| {
+            if let Some(weapon) = &mut fish.weapon {
+                if let Some(sprite) = &mut weapon.fx_sprite {
+                    sprite.set_animation(animation);
+                }
+            }
+        })
+    }
+
+    fn set_sprite_frame(&self, frame: u32) {
+        self.with_current_fish(|fish| {
+            if let Some(weapon) = &mut fish.weapon {
+                weapon.sprite.set_frame(frame);
+            }
+        })
+    }
+
+    fn set_fx_sprite_frame(&self, frame: u32) {
+        self.with_current_fish(|fish| {
+            if let Some(weapon) = &mut fish.weapon {
+                if let Some(sprite) = &mut weapon.fx_sprite {
+                    sprite.set_frame(frame);
+                }
+            }
+        })
+    }
+
     fn facing_dir(&self) -> f32 {
-        0.0
+        self.with_current_fish(|fish| {
+            fish.facing_dir()
+        })
     }
 }
 
@@ -110,7 +163,11 @@ impl PluginRegistry {
                     builder = builder.import_function_with_context("spawn_bullet", game_api.clone(), |ctx: &GameApi| { ctx.spawn_bullet(); });
                     builder = builder.import_function_with_context("set_sprite_fx", game_api.clone(), |ctx: &GameApi, s: bool| { ctx.set_sprite_fx(s); });
                     builder = builder.import_function_with_context("get_speed", game_api.clone(), |ctx: &GameApi| { ctx.get_speed() });
-                    builder = builder.import_function_with_context("set_speed", game_api.clone(), |ctx: &GameApi, s: f32| { ctx.set_speed(s); });
+                    builder = builder.import_function_with_context("set_speed", game_api.clone(), |ctx: &GameApi, s: [f32; 2]| { ctx.set_speed(s); });
+                    builder = builder.import_function_with_context("set_sprite_animation", game_api.clone(), |ctx: &GameApi, animation: usize| { ctx.set_sprite_animation(animation); });
+                    builder = builder.import_function_with_context("set_fx_sprite_animation", game_api.clone(), |ctx: &GameApi, animation: usize| { ctx.set_fx_sprite_animation(animation); });
+                    builder = builder.import_function_with_context("set_sprite_frame", game_api.clone(), |ctx: &GameApi, frame: u32| { ctx.set_sprite_frame(frame); });
+                    builder = builder.import_function_with_context("set_fx_sprite_frame", game_api.clone(), |ctx: &GameApi, frame: u32| { ctx.set_fx_sprite_frame(frame); });
                     builder = builder.import_function_with_context("facing_dir", game_api.clone(), |ctx: &GameApi| { ctx.facing_dir() });
                     let mut plugin = builder
                         .finish()

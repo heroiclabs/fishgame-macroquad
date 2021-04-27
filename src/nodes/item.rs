@@ -21,7 +21,7 @@ pub(crate) struct ItemImplementation {
     pub pickup_src: Rect,
     pub pickup_dst: Vec2,
     pub sprite: AnimatedSprite,
-    pub fx_sprite: AnimatedSprite,
+    pub fx_sprite: Option<AnimatedSprite>,
     implementing_plugin: PluginId,
 }
 
@@ -38,7 +38,7 @@ impl ItemImplementation {
             pickup_src: Rect::new(pickup_src.x, pickup_src.y, pickup_src.w, pickup_src.h),
             pickup_dst: vec2(description.pickup_dst[0], description.pickup_dst[1]),
             sprite: animated_sprite_from_desc(description.sprite),
-            fx_sprite: animated_sprite_from_desc(description.fx_sprite),
+            fx_sprite: description.fx_sprite.map(|d| animated_sprite_from_desc(d)),
             implementing_plugin: plugin
         }
     }
@@ -64,7 +64,7 @@ impl ItemImplementation {
     pub(crate) fn update_shoot(&self, item_id: ItemInstanceId, fish: &mut Fish) -> bool {
         self.with_plugin(|p| {
             let _guard = p.game_api.set_current_fish(fish);
-            let done = p.wasm_plugin.call_function_with_argument("update_shoot", &item_id).unwrap();
+            let done = p.wasm_plugin.call_function_with_argument("update_shoot", &(item_id, get_frame_time())).unwrap();
             done
         })
     }

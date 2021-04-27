@@ -62,7 +62,7 @@ pub struct ItemDescription {
     pub pickup_src: Rect,
     pub pickup_dst: [f32; 2],
     pub sprite: AnimatedSpriteDescription,
-    pub fx_sprite: AnimatedSpriteDescription,
+    pub fx_sprite: Option<AnimatedSpriteDescription>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -102,9 +102,14 @@ macro_rules! import_game_api {
         wasm_plugin_guest::import_functions! {
             fn spawn_bullet();
             fn set_sprite_fx(s: bool);
-            fn get_speed() -> f32;
-            fn set_speed(speed: f32);
+            fn get_speed() -> [f32; 2];
+            fn set_speed(speed: [f32; 2]);
             fn facing_dir() -> f32;
+            fn set_sprite_animation(animation: u32);
+            fn set_fx_sprite_animation(animation: u32);
+            fn set_sprite_frame(frame: u32);
+            fn set_fx_sprite_frame(frame: u32);
+            fn clear_weapon();
         }
     };
 }

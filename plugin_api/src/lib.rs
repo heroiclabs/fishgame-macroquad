@@ -110,6 +110,7 @@ macro_rules! import_game_api {
             fn set_sprite_frame(frame: u32);
             fn set_fx_sprite_frame(frame: u32);
             fn clear_weapon();
+            fn debug_print(message: String);
         }
     };
 }

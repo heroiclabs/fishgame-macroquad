@@ -15,7 +15,7 @@ use macroquad::{
 use wasm_plugin_host::WasmPlugin;
 
 use plugin_api::{ImageDescription, AnimationDescription, AnimatedSpriteDescription, PluginDescription, PluginId};
-use crate::nodes::{ItemImplementationRegistry, Player, Fish};
+use crate::nodes::{ItemImplementationRegistry, Player};
 
 
 pub fn image_from_desc(desc: ImageDescription) -> Image {
@@ -53,102 +53,86 @@ pub struct Plugin {
 
 #[derive(Default, Clone)]
 pub struct GameApi {
-    current_fish: Arc<Mutex<Option<*mut Fish>>>,
+    current_player: Arc<Mutex<Option<Handle<Player>>>>,
 }
 unsafe impl Send for GameApi {}
 unsafe impl Sync for GameApi {}
 
-pub struct CurrentFishGuard(GameApi);
-impl Drop for CurrentFishGuard {
-    fn drop(&mut self) {
-        self.0.clear_current_fish();
-    }
-}
-
 impl GameApi {
-    pub fn set_current_fish(&self, player: &mut Fish) -> CurrentFishGuard {
-        self.current_fish.lock().unwrap().replace(player as *mut Fish);
-        CurrentFishGuard(self.clone())
-    }
-    pub fn clear_current_fish(&self) {
-        self.current_fish.lock().unwrap().take();
+    pub fn with_current_player<R>(&self, player: Handle<Player>, mut f: impl FnMut() -> R) -> R {
+        self.current_player.lock().unwrap().replace(player);
+        let result = f();
+        self.current_player.lock().unwrap().take();
+        result
     }
 
-    fn with_current_fish<R>(&self, f: impl Fn(&mut Fish) -> R) -> R {
-        let fish_guard = self.current_fish.lock().unwrap();
-        let fish_ptr: *mut Fish = fish_guard.unwrap();
-        let fish_ref = unsafe { fish_ptr.as_mut().unwrap() };
-        f(fish_ref)
+    fn current_player(&self) -> Handle<Player> {
+        self.current_player.lock().unwrap().unwrap().clone()
     }
 
     fn spawn_bullet(&self) {
-        self.with_current_fish(|fish| {
-            let mut bullets = scene::find_node_by_type::<crate::nodes::Bullets>().unwrap();
-            bullets.spawn_bullet(fish.pos, fish.facing);
-        });
+        let node = &mut *scene::get_node(self.current_player());
+        let mut bullets = scene::find_node_by_type::<crate::nodes::Bullets>().unwrap();
+        bullets.spawn_bullet(node.fish.pos, node.fish.facing);
     }
 
     fn set_sprite_fx(&self, s: bool) {
-        self.with_current_fish(|fish| {
-            if let Some(weapon) = &mut fish.weapon {
-                weapon.fx = s;
-            }
-        });
+        let node = &mut *scene::get_node(self.current_player());
+        if let Some(weapon) = &mut node.fish.weapon {
+            weapon.fx = s;
+        }
     }
 
     fn get_speed(&self) -> [f32; 2] {
-        self.with_current_fish(|fish| {
-            [fish.speed.x, fish.speed.y]
-        })
+        let node = &mut *scene::get_node(self.current_player());
+        [node.fish.speed.x, node.fish.speed.y]
     }
 
     fn set_speed(&self, speed: [f32; 2]) {
-        self.with_current_fish(|fish| {
-            fish.speed.x = speed[0];
-            fish.speed.y = speed[1];
-        })
+        let node = &mut *scene::get_node(self.current_player());
+        node.fish.speed.x = speed[0];
+        node.fish.speed.y = speed[1];
     }
 
     fn set_sprite_animation(&self, animation: usize) {
-        self.with_current_fish(|fish| {
-            if let Some(weapon) = &mut fish.weapon {
-                weapon.sprite.set_animation(animation);
-            }
-        })
+        let node = &mut *scene::get_node(self.current_player());
+        if let Some(weapon) = &mut node.fish.weapon {
+            weapon.sprite.set_animation(animation);
+        }
     }
 
     fn set_fx_sprite_animation(&self, animation: usize) {
-        self.with_current_fish(|fish| {
-            if let Some(weapon) = &mut fish.weapon {
-                if let Some(sprite) = &mut weapon.fx_sprite {
-                    sprite.set_animation(animation);
-                }
+        let node = &mut *scene::get_node(self.current_player());
+        if let Some(weapon) = &mut node.fish.weapon {
+            if let Some(sprite) = &mut weapon.fx_sprite {
+                sprite.set_animation(animation);
             }
-        })
+        }
     }
 
     fn set_sprite_frame(&self, frame: u32) {
-        self.with_current_fish(|fish| {
-            if let Some(weapon) = &mut fish.weapon {
-                weapon.sprite.set_frame(frame);
-            }
-        })
+        let node = &mut *scene::get_node(self.current_player());
+        if let Some(weapon) = &mut node.fish.weapon {
+            weapon.sprite.set_frame(frame);
+        }
     }
 
     fn set_fx_sprite_frame(&self, frame: u32) {
-        self.with_current_fish(|fish| {
-            if let Some(weapon) = &mut fish.weapon {
-                if let Some(sprite) = &mut weapon.fx_sprite {
-                    sprite.set_frame(frame);
-                }
+        let node = &mut *scene::get_node(self.current_player());
+        if let Some(weapon) = &mut node.fish.weapon {
+            if let Some(sprite) = &mut weapon.fx_sprite {
+                sprite.set_frame(frame);
             }
-        })
+        }
     }
 
     fn facing_dir(&self) -> f32 {
-        self.with_current_fish(|fish| {
-            fish.facing_dir()
-        })
+        let node = &mut *scene::get_node(self.current_player());
+        node.fish.facing_dir()
+    }
+
+    fn debug_print(&self, message: String) {
+        println!("{}", message);
     }
 }
 
@@ -169,6 +153,7 @@ impl PluginRegistry {
                     builder = builder.import_function_with_context("set_sprite_frame", game_api.clone(), |ctx: &GameApi, frame: u32| { ctx.set_sprite_frame(frame); });
                     builder = builder.import_function_with_context("set_fx_sprite_frame", game_api.clone(), |ctx: &GameApi, frame: u32| { ctx.set_fx_sprite_frame(frame); });
                     builder = builder.import_function_with_context("facing_dir", game_api.clone(), |ctx: &GameApi| { ctx.facing_dir() });
+                    builder = builder.import_function_with_context("debug_print", game_api.clone(), |ctx: &GameApi, message: String| { ctx.debug_print(message) });
                     let mut plugin = builder
                         .finish()
                         .unwrap();

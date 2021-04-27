@@ -4,8 +4,11 @@ use std::{
     cell::{RefCell, Cell},
     io::Cursor,
     collections::HashMap,
+    pin::Pin,
+    task::{Context, Poll},
 };
 use async_executor::{LocalExecutor, Task};
+use futures_lite::future;
 
 use plugin_api::{ItemType, ImageDescription, AnimationDescription, AnimatedSpriteDescription, PluginDescription, PluginId, ItemDescription, Rect, ItemInstanceId, import_game_api};
 
@@ -214,10 +217,12 @@ impl Default for ItemCoroutine {
 impl ItemCoroutine {
     fn step(&mut self, delta_time: f32) -> bool {
         self.timer.incr_time(delta_time);
+        debug_print(format!("poop {}", self.timer.time.get()));
         if self.coroutine.is_none() {
-            return false;
+            return true;
         }
-        self.executor.try_tick();
+        let r = self.executor.try_tick();
+        debug_print(format!("poop {} {}", self.executor.is_empty(), r));
         if self.executor.is_empty() {
             self.coroutine.take();
             true
@@ -261,15 +266,41 @@ struct Timer {
 
 impl Timer {
     async fn wait_seconds(&self, seconds: f32) {
-        let end = self.time.get() + seconds;
-        while self.time.get() < end {
-            futures_lite::future::yield_now().await;
-        }
+        let timer = self.clone();
+        let start_time = timer.time.get();
+        future::poll_fn(move |_cx| {
+            if timer.time.get() - start_time >= seconds {
+                Poll::Ready(())
+            } else {
+                Poll::Pending
+            }
+        }).await;
     }
 
     fn incr_time(&self, delta: f32) {
         let current_time = self.time.get();
         self.time.set(current_time + delta);
+    }
+}
+
+pub struct TimerDelayFuture {
+    start_time: f32,
+    time: f32,
+    timer: Timer,
+}
+impl Unpin for TimerDelayFuture {}
+
+impl Future for TimerDelayFuture {
+    type Output = Option<()>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut Context) -> Poll<Self::Output> {
+        debug_print(format!("{} {} {}", self.timer.time.get(),  self.start_time, self.time));
+        if self.timer.time.get() - self.start_time >= self.time {
+            Poll::Ready(Some(()))
+        } else {
+            //Poll::Pending
+            Poll::Ready(Some(()))
+        }
     }
 }
 
@@ -280,13 +311,25 @@ async fn gun_coroutine(timer: Timer) {
     speed[0] -= GUN_THROWBACK * facing_dir();
     set_speed(speed);
     set_sprite_animation(1);
-    timer.wait_seconds(0.08*3.0).await;
+
+    for i in 0u32..3 {
+        set_sprite_frame(i);
+        set_fx_sprite_frame(i);
+        debug_print("gun pre wait".to_string());
+        timer.wait_seconds(0.08).await;
+        debug_print("gun post wait".to_string());
+    }
     set_sprite_animation(0);
     set_sprite_fx(false);
+    debug_print("gun done".to_string());
 }
 
 async fn sword_coroutine(timer: Timer) {
     set_sprite_animation(1);
-    timer.wait_seconds(0.08*3.0).await;
+    for i in 0u32..3 {
+        set_sprite_frame(i);
+        timer.wait_seconds(0.08).await;
+    }
     set_sprite_animation(0);
+    debug_print("sword done".to_string());
 }

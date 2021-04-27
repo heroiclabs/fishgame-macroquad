@@ -291,6 +291,7 @@ impl Player {
             Self::ST_SHOOT,
             State::new()
                 .update(Self::update_shoot)
+                .coroutine(Self::shoot_coroutine),
         );
         state_machine.add_state(
             Self::ST_AFTERMATCH,
@@ -405,20 +406,37 @@ impl Player {
     }
 
     fn update_shoot(node: &mut RefMut<Player>, _dt: f32) {
-        if let Some(weapon) = &node.fish.weapon {
-            let item_registry = storage::get::<ItemImplementationRegistry>();
-            let implementation = item_registry.get_implementation(weapon.item_type).unwrap();
-            let item_id = weapon.item_id;
-            let done = implementation.update_shoot(item_id, &mut node.fish);
-            if done {
-                if let Some((0, _)) = implementation.uses_remaining(item_id) {
-                    node.fish.weapon.take();
+    }
+
+    fn shoot_coroutine(node: &mut RefMut<Player>) -> Coroutine {
+        let handle = node.handle();
+        let coroutine = async move {
+            loop {
+                let mut item = None;
+                if let Some(weapon) = &scene::get_node(handle).fish.weapon {
+                    item = Some((weapon.item_type, weapon.item_id));
                 }
-                node.state_machine.set_state(Self::ST_NORMAL);
+                if let Some((item_type, item_id)) = item {
+                    let item_registry = storage::get::<ItemImplementationRegistry>();
+                    let implementation = item_registry.get_implementation(item_type).unwrap();
+                    let done = implementation.update_shoot(item_id, handle);
+                    if done {
+                        let node = &mut *scene::get_node(handle);
+                        if let Some((0, _)) = implementation.uses_remaining(item_id) {
+                            node.fish.weapon.take();
+                        }
+                        node.state_machine.set_state(Self::ST_NORMAL);
+                        break
+                    }
+                } else {
+                    let node = &mut *scene::get_node(handle);
+                    node.state_machine.set_state(Self::ST_NORMAL);
+                    break
+                }
+                wait_seconds(0.005).await;
             }
-        } else {
-            node.state_machine.set_state(Self::ST_NORMAL);
-        }
+        };
+        start_coroutine(coroutine)
     }
 
     fn update_aftermatch(node: &mut RefMut<Player>, _dt: f32) {

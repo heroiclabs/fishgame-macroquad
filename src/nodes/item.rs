@@ -69,7 +69,7 @@ impl ItemImplementation {
                 wasm_plugin
             } = p;
             game_api.with_current_player(player, || {
-                wasm_plugin.call_function_with_argument("update_shoot", &(item_id, get_frame_time())).unwrap()
+                wasm_plugin.call_function_with_argument("update_shoot", &(item_id, get_time())).unwrap()
             })
         })
     }

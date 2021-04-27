@@ -1,14 +1,8 @@
 use std::{
-    future::Future,
-    sync::Arc,
-    cell::{RefCell, Cell},
+    cell::RefCell,
     io::Cursor,
     collections::HashMap,
-    pin::Pin,
-    task::{Context, Poll},
 };
-use async_executor::{LocalExecutor, Task};
-use futures_lite::future;
 
 use plugin_api::{ItemType, ImageDescription, AnimationDescription, AnimatedSpriteDescription, PluginDescription, PluginId, ItemDescription, Rect, ItemInstanceId, import_game_api};
 
@@ -34,8 +28,8 @@ pub const GUN_THROWBACK: f32 = 700.0;
 import_game_api!();
 
 pub enum ItemState {
-    Gun(ItemCoroutine, GunState),
-    Sword(ItemCoroutine),
+    Gun(GunState),
+    Sword(SwordState),
 }
 
 #[wasm_plugin_guest::export_function]
@@ -149,8 +143,8 @@ fn plugin_description() -> PluginDescription {
 #[wasm_plugin_guest::export_function]
 fn new_instance(item_type: ItemType, item_id: ItemInstanceId) {
     let state = match item_type {
-        GUN => ItemState::Gun(ItemCoroutine::default(), GunState::default()),
-        SWORD => ItemState::Sword(ItemCoroutine::default()),
+        GUN => ItemState::Gun(GunState::default()),
+        SWORD => ItemState::Sword(SwordState::default()),
         _ => panic!()
     };
 
@@ -165,7 +159,7 @@ fn destroy_instance(item_id: ItemInstanceId) {
 #[wasm_plugin_guest::export_function]
 fn uses_remaining(item_id: ItemInstanceId) -> Option<(u32, u32)> {
     ITEMS.with(|items| {
-        if let Some(ItemState::Gun(_, state)) = items.borrow_mut().get(&item_id) {
+        if let Some(ItemState::Gun(state)) = items.borrow_mut().get(&item_id) {
             Some((state.ammo, 3))
         } else {
             None
@@ -174,22 +168,46 @@ fn uses_remaining(item_id: ItemInstanceId) -> Option<(u32, u32)> {
 }
 
 #[wasm_plugin_guest::export_function]
-fn update_shoot(item_id: ItemInstanceId, delta_time: f32) -> bool {
+fn update_shoot(item_id: ItemInstanceId, current_time: f64) -> bool {
     ITEMS.with(|items| {
         if let Some(item) = items.borrow_mut().get_mut(&item_id) {
             match item {
-                ItemState::Gun(coroutine, state) => {
-                    if !coroutine.started() {
+                ItemState::Gun(state) => {
+                    if let Some(time) = state.recovery_time {
+                        if time <= current_time {
+                            set_sprite_animation(0);
+                            set_sprite_fx(false);
+                            state.recovery_time.take();
+                            true
+                        } else {
+                            false
+                        }
+                    } else {
                         state.ammo -= 1;
-                        coroutine.start(gun_coroutine);
+                        spawn_bullet();
+                        set_sprite_fx(true);
+                        let mut speed = get_speed();
+                        speed[0] -= GUN_THROWBACK * facing_dir();
+                        set_speed(speed);
+                        set_sprite_animation(1);
+                        state.recovery_time = Some(current_time + 0.08 * 3.0);
+                        false
                     }
-                    coroutine.step(delta_time)
                 },
-                ItemState::Sword(coroutine) => {
-                    if !coroutine.started() {
-                        coroutine.start(sword_coroutine);
+                ItemState::Sword(state) => {
+                    if let Some(time) = state.recovery_time {
+                        if time <= current_time {
+                            set_sprite_animation(0);
+                            state.recovery_time.take();
+                            true
+                        } else {
+                            false
+                        }
+                    } else {
+                        set_sprite_animation(1);
+                        state.recovery_time = Some(current_time + 0.08 * 3.0);
+                        false
                     }
-                    coroutine.step(delta_time)
                 },
             }
         } else {
@@ -198,138 +216,21 @@ fn update_shoot(item_id: ItemInstanceId, delta_time: f32) -> bool {
     })
 }
 
-pub struct ItemCoroutine {
-    executor: LocalExecutor<'static>,
-    timer: Timer,
-    coroutine: Option<Task<()>>,
-}
-
-impl Default for ItemCoroutine {
-    fn default() -> Self {
-        Self {
-            executor: LocalExecutor::new(),
-            timer: Timer::default(),
-            coroutine: None,
-        }
-    }
-}
-
-impl ItemCoroutine {
-    fn step(&mut self, delta_time: f32) -> bool {
-        self.timer.incr_time(delta_time);
-        debug_print(format!("poop {}", self.timer.time.get()));
-        if self.coroutine.is_none() {
-            return true;
-        }
-        let r = self.executor.try_tick();
-        debug_print(format!("poop {} {}", self.executor.is_empty(), r));
-        if self.executor.is_empty() {
-            self.coroutine.take();
-            true
-        } else {
-            false
-        }
-    }
-
-    fn started(&self) -> bool {
-        self.coroutine.is_some()
-    }
-
-    fn start<F, Fu>(&mut self, f: F)
-    where
-        Fu: Future<Output=()>,
-        F: Fn(Timer) -> Fu + 'static
-    {
-        let timer = self.timer.clone();
-        self.coroutine = Some(self.executor.spawn(async move {
-            f(timer).await
-        }));
-    }
-}
-
 pub struct GunState {
+    recovery_time: Option<f64>,
     ammo: u32,
 }
 
 impl Default for GunState {
     fn default() -> Self {
         Self {
+            recovery_time: None,
             ammo: 3,
         }
     }
 }
 
-#[derive(Clone, Default)]
-struct Timer {
-    time: Arc<Cell<f32>>,
-}
-
-impl Timer {
-    async fn wait_seconds(&self, seconds: f32) {
-        let timer = self.clone();
-        let start_time = timer.time.get();
-        future::poll_fn(move |_cx| {
-            if timer.time.get() - start_time >= seconds {
-                Poll::Ready(())
-            } else {
-                Poll::Pending
-            }
-        }).await;
-    }
-
-    fn incr_time(&self, delta: f32) {
-        let current_time = self.time.get();
-        self.time.set(current_time + delta);
-    }
-}
-
-pub struct TimerDelayFuture {
-    start_time: f32,
-    time: f32,
-    timer: Timer,
-}
-impl Unpin for TimerDelayFuture {}
-
-impl Future for TimerDelayFuture {
-    type Output = Option<()>;
-
-    fn poll(self: Pin<&mut Self>, _: &mut Context) -> Poll<Self::Output> {
-        debug_print(format!("{} {} {}", self.timer.time.get(),  self.start_time, self.time));
-        if self.timer.time.get() - self.start_time >= self.time {
-            Poll::Ready(Some(()))
-        } else {
-            //Poll::Pending
-            Poll::Ready(Some(()))
-        }
-    }
-}
-
-async fn gun_coroutine(timer: Timer) {
-    spawn_bullet();
-    set_sprite_fx(true);
-    let mut speed = get_speed();
-    speed[0] -= GUN_THROWBACK * facing_dir();
-    set_speed(speed);
-    set_sprite_animation(1);
-
-    for i in 0u32..3 {
-        set_sprite_frame(i);
-        set_fx_sprite_frame(i);
-        debug_print("gun pre wait".to_string());
-        timer.wait_seconds(0.08).await;
-        debug_print("gun post wait".to_string());
-    }
-    set_sprite_animation(0);
-    set_sprite_fx(false);
-    debug_print("gun done".to_string());
-}
-
-async fn sword_coroutine(timer: Timer) {
-    set_sprite_animation(1);
-    for i in 0u32..3 {
-        set_sprite_frame(i);
-        timer.wait_seconds(0.08).await;
-    }
-    set_sprite_animation(0);
-    debug_print("sword done".to_string());
+#[derive(Default)]
+pub struct SwordState {
+    recovery_time: Option<f64>,
 }

@@ -75,7 +75,7 @@ impl scene::Node for Pickup {
         );
 
         let item_registry = storage::get::<ItemImplementationRegistry>();
-        let item_impl = item_registry.get_implementation(node.item_type).expect("Invalid ItemType");
+        let item_impl = item_registry.get_implementation(node.item_type).expect(&format!("Invalid ItemType: {:?}", node.item_type));
 
         //TODO: position sprite
         draw_texture_ex(

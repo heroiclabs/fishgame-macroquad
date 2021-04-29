@@ -9,7 +9,8 @@ use macroquad::{
 
 use crate::{
     nodes::{
-        player::{Fish, Weapon},
+        player::Fish,
+        item::ItemImplementationRegistry,
     },
     Resources,
 };
@@ -18,7 +19,7 @@ use plugin_api::ItemType;
 pub struct RemotePlayer {
     pub username: String,
     pub id: String,
-    fish: Fish,
+    pub fish: Fish,
 
     pub dead: bool,
     pub ready: bool,
@@ -72,7 +73,26 @@ impl RemotePlayer {
     }
 
     pub fn shoot(&mut self, handle: Handle<Self>) {
-        todo!("remote weapon handling");
+        let coroutine = async move {
+             loop {
+                 let mut item = None;
+                 if let Some(weapon) = &scene::get_node(handle).fish.weapon {
+                     item = Some((weapon.item_type, weapon.item_id));
+                 }
+                 if let Some((item_type, item_id)) = item {
+                     let item_registry = storage::get::<ItemImplementationRegistry>();
+                     let implementation = item_registry.get_implementation(item_type).unwrap();
+                     let done = implementation.update_remote_shoot(item_id, handle);
+                     if done {
+                         break
+                     }
+                 } else {
+                     break
+                 }
+                 wait_seconds(0.005).await;
+             }
+         };
+         start_coroutine(coroutine);
     }
 }
 impl scene::Node for RemotePlayer {

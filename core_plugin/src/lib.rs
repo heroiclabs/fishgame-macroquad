@@ -1,5 +1,5 @@
 use std::{
-    cell::RefCell,
+    sync::Mutex,
     io::Cursor,
     collections::HashMap,
 };
@@ -7,17 +7,8 @@ use std::{
 use plugin_api::{ItemType, ImageDescription, AnimationDescription, AnimatedSpriteDescription, PluginDescription, PluginId, ItemDescription, Rect, ItemInstanceId, import_game_api};
 
 
-// The Mutex here is really not necessary since this is guaranteed to be a single
-// threaded environment, I'm just avoiding writing unsafe blocks. A library for
-// writing these plugins could probably include a more efficient state store
-// that takes advantage of the single threadedness.
-//
-// An alternative design would be for the new_instance function to allocate state on
-// the heap and return a pointer which would then get passed back in when other
-// functions are called. I think I like having the non-pointer key and letting the
-// plugin interpret that however it sees fit but you could argue for the other version.
-thread_local! {
-        pub static ITEMS:RefCell<HashMap<ItemInstanceId, ItemState>> = Default::default();
+lazy_static::lazy_static! {
+    static ref ITEMS:Mutex<HashMap<ItemInstanceId, ItemState>> = Default::default();
 }
 
 const GUN: ItemType = ItemType::new(9868317461196439167);
@@ -148,72 +139,109 @@ fn new_instance(item_type: ItemType, item_id: ItemInstanceId) {
         _ => panic!()
     };
 
-    ITEMS.with(|items| items.borrow_mut().insert(item_id, state));
+    ITEMS.lock().unwrap().insert(item_id, state);
 }
 
 #[wasm_plugin_guest::export_function]
 fn destroy_instance(item_id: ItemInstanceId) {
-    ITEMS.with(|items| items.borrow_mut().remove(&item_id));
+    ITEMS.lock().unwrap().remove(&item_id);
 }
 
 #[wasm_plugin_guest::export_function]
 fn uses_remaining(item_id: ItemInstanceId) -> Option<(u32, u32)> {
-    ITEMS.with(|items| {
-        if let Some(ItemState::Gun(state)) = items.borrow_mut().get(&item_id) {
-            Some((state.ammo, 3))
-        } else {
-            None
-        }
-    })
+    if let Some(ItemState::Gun(state)) = ITEMS.lock().unwrap().get(&item_id) {
+        Some((state.ammo, 3))
+    } else {
+        None
+    }
 }
 
 #[wasm_plugin_guest::export_function]
 fn update_shoot(item_id: ItemInstanceId, current_time: f64) -> bool {
-    ITEMS.with(|items| {
-        if let Some(item) = items.borrow_mut().get_mut(&item_id) {
-            match item {
-                ItemState::Gun(state) => {
-                    if let Some(time) = state.recovery_time {
-                        if time <= current_time {
-                            set_sprite_animation(0);
-                            set_sprite_fx(false);
-                            state.recovery_time.take();
-                            true
-                        } else {
-                            false
+    if let Some(item) = ITEMS.lock().unwrap().get_mut(&item_id) {
+        match item {
+            ItemState::Gun(state) => {
+                if let Some(time) = state.recovery_time {
+                    if time <= current_time {
+                        set_sprite_animation(0);
+                        set_sprite_fx(false);
+                        state.recovery_time.take();
+                        if state.ammo == 0 {
+                            disarm();
                         }
+                        true
                     } else {
-                        state.ammo -= 1;
-                        spawn_bullet();
-                        set_sprite_fx(true);
-                        let mut speed = get_speed();
-                        speed[0] -= GUN_THROWBACK * facing_dir();
-                        set_speed(speed);
-                        set_sprite_animation(1);
-                        state.recovery_time = Some(current_time + 0.08 * 3.0);
                         false
                     }
-                },
-                ItemState::Sword(state) => {
-                    if let Some(time) = state.recovery_time {
-                        if time <= current_time {
-                            set_sprite_animation(0);
-                            state.recovery_time.take();
-                            true
-                        } else {
-                            false
-                        }
+                } else {
+                    state.ammo -= 1;
+                    spawn_bullet();
+                    nakama_shoot();
+                    set_sprite_fx(true);
+                    let mut speed = get_speed();
+                    speed[0] -= GUN_THROWBACK * facing_dir();
+                    set_speed(speed);
+                    set_sprite_animation(1);
+                    state.recovery_time = Some(current_time + 0.08 * 3.0);
+                    false
+                }
+            },
+            ItemState::Sword(state) => {
+                if let Some(time) = state.recovery_time {
+                    if time <= current_time {
+                        set_sprite_animation(0);
+                        state.recovery_time.take();
+                        true
                     } else {
-                        set_sprite_animation(1);
-                        state.recovery_time = Some(current_time + 0.08 * 3.0);
+                        nakama_shoot();
+                        let pos = position();
+                        let sword_hit_box = if facing_dir() > 0.0 {
+                            [pos[0] + 35., pos[1] - 5., 40., 60.]
+                        } else {
+                            [pos[0] - 50., pos[1] - 5., 40., 60.]
+                        };
+                        hit_rect(sword_hit_box);
                         false
                     }
-                },
-            }
-        } else {
-            true
+                } else {
+                    set_sprite_animation(1);
+                    state.recovery_time = Some(current_time + 0.08 * 3.0);
+                    false
+                }
+            },
         }
-    })
+    } else {
+        true
+    }
+}
+
+#[wasm_plugin_guest::export_function]
+fn update_remote_shoot(item_id: ItemInstanceId, current_time: f64) -> bool {
+    if let Some(item) = ITEMS.lock().unwrap().get_mut(&item_id) {
+        match item {
+            ItemState::Gun(_) => {
+                spawn_bullet();
+                true
+            },
+            ItemState::Sword(state) => {
+                if let Some(time) = state.recovery_time {
+                    if time <= current_time {
+                        set_sprite_animation(0);
+                        state.recovery_time.take();
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    set_sprite_animation(1);
+                    state.recovery_time = Some(current_time + 0.08 * 3.0);
+                    false
+                }
+            }
+        }
+    } else {
+        true
+    }
 }
 
 pub struct GunState {

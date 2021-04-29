@@ -31,7 +31,7 @@ pub struct Input {
 
 pub struct Weapon {
     pub item_type: ItemType,
-    item_id: ItemInstanceId,
+    pub item_id: ItemInstanceId,
     texture: Texture2D,
     mount_pos_right: Vec2,
     mount_pos_left: Vec2,
@@ -43,7 +43,7 @@ pub struct Weapon {
 impl Drop for Weapon {
     fn drop(&mut self) {
         let item_registry = storage::get::<ItemImplementationRegistry>();
-        let item_impl = item_registry.get_implementation(self.item_type).expect("Invalid ItemType");
+        let item_impl = item_registry.get_implementation(self.item_type).expect(&format!("Invalid ItemType: {:?}", self.item_type));
         item_impl.destroy(self.item_id);
     }
 }
@@ -52,7 +52,7 @@ impl Weapon {
     fn new(item_type: ItemType) -> Self {
         let mut item_id_source = storage::get_mut::<ItemIdSource>();
         let item_registry = storage::get::<ItemImplementationRegistry>();
-        let item_impl = item_registry.get_implementation(item_type).expect("Invalid ItemType");
+        let item_impl = item_registry.get_implementation(item_type).expect(&format!("Invalid ItemType: {:?}", item_type));
         let instance_id = item_id_source.next_id();
         item_impl.construct(instance_id);
         Self {
@@ -84,6 +84,7 @@ pub struct Fish {
     dead: bool,
     pub facing: bool,
     pub weapon: Option<Weapon>,
+    discarded_weapon: Option<Weapon>,
     input: Input,
 }
 
@@ -132,6 +133,7 @@ impl Fish {
             speed: vec2(0., 0.),
             facing: true,
             weapon: None,
+            discarded_weapon: None,
             input: Default::default(),
         }
     }
@@ -157,7 +159,11 @@ impl Fish {
     }
 
     pub fn disarm(&mut self) {
-        self.weapon = None;
+        // This juggle is necessary because the plugins need to clean up
+        // their internal state when a weapon is discarded but they aren't
+        // currently callable recursively so the actual weapon cleanup must
+        // be defered until there's no call to the plugin happening.
+        self.discarded_weapon = self.weapon.take();
     }
 
     pub fn pick_weapon(&mut self, item_type: ItemType) {
@@ -258,7 +264,7 @@ pub struct Player {
     state_machine: StateMachine<RefMut<Player>>,
     leaderboard_written: bool,
     nakama: Handle<Nakama>,
-    nakama_realtime: Handle<NakamaRealtimeGame>,
+    pub nakama_realtime: Handle<NakamaRealtimeGame>,
 }
 
 impl Player {
@@ -422,9 +428,6 @@ impl Player {
                     let done = implementation.update_shoot(item_id, handle);
                     if done {
                         let node = &mut *scene::get_node(handle);
-                        if let Some((0, _)) = implementation.uses_remaining(item_id) {
-                            node.fish.weapon.take();
-                        }
                         node.state_machine.set_state(Self::ST_NORMAL);
                         break
                     }
@@ -552,6 +555,10 @@ impl scene::Node for Player {
     }
 
     fn update(mut node: RefMut<Self>) {
+        // finalize any disarmament that happened in the previous frame
+        // here where it's safe to call the plugin's item destructor.
+        node.fish.discarded_weapon.take();
+
         let game_started = scene::find_node_by_type::<crate::nodes::NakamaRealtimeGame>()
             .unwrap()
             .game_started();

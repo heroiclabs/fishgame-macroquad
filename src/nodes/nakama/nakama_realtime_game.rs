@@ -20,13 +20,13 @@ use crate::{
 use plugin_api::ItemType;
 
 struct NetworkCache {
-    sent_position: [u8; 4],
+    sent_position: [u8; 11],
     last_send_time: f64,
 }
 
 impl NetworkCache {
     fn flush(&mut self) {
-        self.sent_position = [0; 4];
+        self.sent_position = [0; 11];
         self.last_send_time = 0.0;
     }
 }
@@ -39,34 +39,34 @@ bitfield::bitfield! {
     y, set_y: 19, 10;
     facing, set_facing: 20;
     shooting, set_shooting: 21;
-    u64, weapon, set_weapon: 30, 22;
-    dead, set_dead: 31;
+    u64, weapon, set_weapon: 85, 22;
+    dead, set_dead: 86;
 }
 
 #[test]
 fn test_bitfield() {
-    let mut bits = PlayerStateBits([0; 4]);
+    let mut bits = PlayerStateBits([0; 11]);
 
     bits.set_x(345);
     bits.set_y(567);
     bits.set_facing(true);
     bits.set_shooting(false);
-    bits.set_weapon(66);
+    bits.set_weapon(11527428624421318257);
 
     assert_eq!(bits.x(), 345);
     assert_eq!(bits.y(), 567);
     assert_eq!(bits.facing(), true);
     assert_eq!(bits.shooting(), false);
-    assert_eq!(bits.weapon(), 66);
+    assert_eq!(bits.weapon(), 11527428624421318257);
     assert_eq!(bits.dead(), false);
-    assert_eq!(std::mem::size_of_val(&bits), 4);
+    assert_eq!(std::mem::size_of_val(&bits), 11);
 }
 
 mod message {
     use nanoserde::{DeBin, SerBin};
 
     #[derive(Debug, Clone, SerBin, DeBin, PartialEq)]
-    pub struct State(pub [u8; 4]);
+    pub struct State(pub [u8; 11]);
     impl State {
         pub const OPCODE: i32 = 1;
     }
@@ -143,7 +143,7 @@ impl NakamaRealtimeGame {
         NakamaRealtimeGame {
             game_type,
             network_cache: NetworkCache {
-                sent_position: [0; 4],
+                sent_position: [0; 11],
                 last_send_time: 0.0,
             },
             remote_players: BTreeMap::new(),
@@ -316,7 +316,7 @@ impl Node for NakamaRealtimeGame {
 
                 node.network_cache.last_send_time = get_time();
 
-                let mut state = PlayerStateBits([0; 4]);
+                let mut state = PlayerStateBits([0; 11]);
 
                 state.set_x(player.pos().x as u32);
                 state.set_y(player.pos().y as u32);

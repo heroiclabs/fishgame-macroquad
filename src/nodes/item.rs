@@ -10,7 +10,7 @@ use macroquad::{
 };
 
 use plugin_api::{ItemType, PluginId, ItemDescription, ItemInstanceId};
-use crate::{nodes::Player, plugin::{image_from_desc, animated_sprite_from_desc, PluginRegistry, Plugin}};
+use crate::{nodes::{Player, RemotePlayer}, plugin::{image_from_desc, animated_sprite_from_desc, PluginRegistry, Plugin}};
 
 
 pub(crate) struct ItemImplementation {
@@ -70,6 +70,18 @@ impl ItemImplementation {
             } = p;
             game_api.with_current_player(player, || {
                 wasm_plugin.call_function_with_argument("update_shoot", &(item_id, get_time())).unwrap()
+            })
+        })
+    }
+
+    pub(crate) fn update_remote_shoot(&self, item_id: ItemInstanceId, player: Handle<RemotePlayer>) -> bool {
+        self.with_plugin(|p| {
+            let Plugin {
+                game_api,
+                wasm_plugin
+            } = p;
+            game_api.with_remote_player(player, || {
+                wasm_plugin.call_function_with_argument("update_remote_shoot", &(item_id, get_time())).unwrap()
             })
         })
     }

@@ -101,15 +101,18 @@ macro_rules! import_game_api {
     () => {
         wasm_plugin_guest::import_functions! {
             fn spawn_bullet();
+            fn hit_rect(rect: [f32; 4]) -> u32;
             fn set_sprite_fx(s: bool);
             fn get_speed() -> [f32; 2];
             fn set_speed(speed: [f32; 2]);
             fn facing_dir() -> f32;
+            fn position() -> [f32; 2];
             fn set_sprite_animation(animation: u32);
             fn set_fx_sprite_animation(animation: u32);
             fn set_sprite_frame(frame: u32);
             fn set_fx_sprite_frame(frame: u32);
-            fn clear_weapon();
+            fn disarm();
+            fn nakama_shoot();
             fn debug_print(message: String);
         }
     };

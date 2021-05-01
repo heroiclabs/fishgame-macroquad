@@ -15,11 +15,14 @@ use macroquad_platformer::Actor;
 
 use crate::{
     consts,
-    nodes::{item::{ItemIdSource, ItemImplementationRegistry}, Nakama, NakamaRealtimeGame, Pickup},
+    nodes::{
+        item::{ItemIdSource, ItemImplementationRegistry},
+        Nakama, NakamaRealtimeGame, Pickup,
+    },
     Resources,
 };
 
-use plugin_api::{ItemType, ItemInstanceId};
+use plugin_api::{ItemInstanceId, ItemType};
 
 #[derive(Default, Debug, Clone)]
 pub struct Input {
@@ -43,7 +46,9 @@ pub struct Weapon {
 impl Drop for Weapon {
     fn drop(&mut self) {
         let item_registry = storage::get::<ItemImplementationRegistry>();
-        let item_impl = item_registry.get_implementation(self.item_type).expect(&format!("Invalid ItemType: {:?}", self.item_type));
+        let item_impl = item_registry
+            .get_implementation(self.item_type)
+            .expect(&format!("Invalid ItemType: {:?}", self.item_type));
         item_impl.destroy(self.item_id);
     }
 }
@@ -52,7 +57,9 @@ impl Weapon {
     fn new(item_type: ItemType) -> Self {
         let mut item_id_source = storage::get_mut::<ItemIdSource>();
         let item_registry = storage::get::<ItemImplementationRegistry>();
-        let item_impl = item_registry.get_implementation(item_type).expect(&format!("Invalid ItemType: {:?}", item_type));
+        let item_impl = item_registry
+            .get_implementation(item_type)
+            .expect(&format!("Invalid ItemType: {:?}", item_type));
         let instance_id = item_id_source.next_id();
         item_impl.construct(instance_id);
         Self {
@@ -72,7 +79,6 @@ impl Weapon {
         let implementation = item_registry.get_implementation(self.item_type).unwrap();
         implementation.uses_remaining(self.item_id)
     }
-
 }
 
 pub struct Fish {
@@ -326,8 +332,7 @@ impl Player {
     }
 
     pub fn pick_weapon(&mut self, item_type: ItemType) {
-        if self.state_machine.state() != Self::ST_SHOOT
-        {
+        if self.state_machine.state() != Self::ST_SHOOT {
             self.fish.pick_weapon(item_type);
         }
     }
@@ -411,8 +416,7 @@ impl Player {
         start_coroutine(coroutine)
     }
 
-    fn update_shoot(node: &mut RefMut<Player>, _dt: f32) {
-    }
+    fn update_shoot(node: &mut RefMut<Player>, _dt: f32) {}
 
     fn shoot_coroutine(node: &mut RefMut<Player>) -> Coroutine {
         let handle = node.handle();
@@ -429,12 +433,12 @@ impl Player {
                     if done {
                         let node = &mut *scene::get_node(handle);
                         node.state_machine.set_state(Self::ST_NORMAL);
-                        break
+                        break;
                     }
                 } else {
                     let node = &mut *scene::get_node(handle);
                     node.state_machine.set_state(Self::ST_NORMAL);
-                    break
+                    break;
                 }
                 wait_seconds(0.005).await;
             }

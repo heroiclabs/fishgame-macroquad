@@ -7,7 +7,7 @@ use macroquad::{
 };
 
 use crate::{
-    nodes::{item::{ItemImplementationRegistry}, NakamaRealtimeGame, Pickup, Player, RemotePlayer},
+    nodes::{item::ItemImplementationRegistry, NakamaRealtimeGame, Pickup, Player, RemotePlayer},
     Resources,
 };
 use plugin_api::ItemType;

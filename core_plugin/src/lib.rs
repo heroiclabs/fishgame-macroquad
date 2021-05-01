@@ -4,7 +4,7 @@ use std::{
     collections::HashMap,
 };
 
-use plugin_api::{ItemType, ImageDescription, AnimationDescription, AnimatedSpriteDescription, PluginDescription, PluginId, ItemDescription, Rect, ItemInstanceId, import_game_api};
+use plugin_api::{ItemType, ImageDescription, AnimationDescription, AnimatedSpriteDescription, PluginDescription, PluginId, ItemDescription, Rect, ItemInstanceId, import_game_api, SoundDescription};
 
 
 lazy_static::lazy_static! {
@@ -38,6 +38,16 @@ fn plugin_description() -> PluginDescription {
     PluginDescription {
         plugin_id: PluginId::new(11229058760733382699),
         display_name: "basic weapons".to_string(),
+        sounds: vec![
+            SoundDescription {
+                name: "sword".to_string(),
+                bytes: include_bytes!("../../assets/sounds/sword.wav").to_vec(),
+            },
+            SoundDescription {
+                name: "shoot".to_string(),
+                bytes: include_bytes!("../../assets/sounds/shoot.ogg").to_vec(),
+            },
+        ],
         items: vec![
             ItemDescription {
                 item_type: SWORD,
@@ -175,6 +185,7 @@ fn update_shoot(item_id: ItemInstanceId, current_time: f64) -> bool {
                     }
                 } else {
                     state.ammo -= 1;
+                    play_sound_once("shoot".to_string());
                     spawn_bullet();
                     nakama_shoot();
                     set_sprite_fx(true);
@@ -194,6 +205,7 @@ fn update_shoot(item_id: ItemInstanceId, current_time: f64) -> bool {
                         true
                     } else {
                         nakama_shoot();
+                        play_sound_once("sword".to_string());
                         let pos = position();
                         let sword_hit_box = if facing_dir() > 0.0 {
                             [pos[0] + 35., pos[1] - 5., 40., 60.]
@@ -221,6 +233,7 @@ fn update_remote_shoot(item_id: ItemInstanceId, current_time: f64) -> bool {
         match item {
             ItemState::Gun(_) => {
                 spawn_bullet();
+                play_sound_once("shoot".to_string());
                 true
             },
             ItemState::Sword(state) => {
@@ -233,6 +246,7 @@ fn update_remote_shoot(item_id: ItemInstanceId, current_time: f64) -> bool {
                         false
                     }
                 } else {
+                    play_sound_once("sword".to_string());
                     set_sprite_animation(1);
                     state.recovery_time = Some(current_time + 0.08 * 3.0);
                     false

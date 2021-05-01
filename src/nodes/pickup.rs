@@ -7,7 +7,7 @@ use macroquad::{
     prelude::*,
 };
 
-use crate::{Resources, nodes::item::{ItemImplementationRegistry}};
+use crate::{nodes::item::ItemImplementationRegistry, Resources};
 use plugin_api::ItemType;
 
 pub struct Pickup {
@@ -75,7 +75,9 @@ impl scene::Node for Pickup {
         );
 
         let item_registry = storage::get::<ItemImplementationRegistry>();
-        let item_impl = item_registry.get_implementation(node.item_type).expect(&format!("Invalid ItemType: {:?}", node.item_type));
+        let item_impl = item_registry
+            .get_implementation(node.item_type)
+            .expect(&format!("Invalid ItemType: {:?}", node.item_type));
 
         //TODO: position sprite
         draw_texture_ex(

@@ -50,6 +50,7 @@ pub struct PluginDescription {
     pub plugin_id: PluginId,
     pub display_name: String,
     pub items: Vec<ItemDescription>,
+    pub sounds: Vec<SoundDescription>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -71,6 +72,12 @@ pub struct Rect {
     pub y: f32,
     pub w: f32,
     pub h: f32
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct SoundDescription {
+    pub name: String,
+    pub bytes: Vec<u8>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -112,6 +119,7 @@ macro_rules! import_game_api {
             fn set_sprite_frame(frame: u32);
             fn set_fx_sprite_frame(frame: u32);
             fn disarm();
+            fn play_sound_once(sound: String);
             fn nakama_shoot();
             fn debug_print(message: String);
         }

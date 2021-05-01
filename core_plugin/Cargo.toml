@@ -9,6 +9,6 @@ edition = "2018"
 
 [dependencies]
 plugin_api = { path = "../plugin_api" }
-wasm_plugin_guest = { version = "0.1.4", default-features = false, features = ["serialize_json"] }
+wasm_plugin_guest = { version = "0.1.5", default-features = false, features = ["serialize_json"] }
 image = { version = "0.23", default-features = false, features = ["png"] }
 lazy_static = "1.4.0"

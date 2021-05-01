@@ -1,23 +1,25 @@
 use std::{
-    sync::{Arc, Mutex},
-    path::Path,
     collections::HashMap,
+    path::Path,
+    sync::{Arc, Mutex},
 };
 
 use macroquad::{
+    audio::{load_sound_data, play_sound_once, Sound},
+    experimental::{
+        animation::{AnimatedSprite, Animation},
+        scene::{self, Handle, RefMut},
+    },
     prelude::*,
     texture::Image,
-    experimental::{
-        scene::{self, Handle, RefMut},
-        animation::{AnimatedSprite, Animation},
-    },
 };
 
 use wasm_plugin_host::WasmPlugin;
 
-use plugin_api::{ImageDescription, AnimationDescription, AnimatedSpriteDescription, PluginDescription, PluginId};
-use crate::nodes::{ItemImplementationRegistry, Player, RemotePlayer, Fish};
-
+use crate::nodes::{Fish, ItemImplementationRegistry, Player, RemotePlayer};
+use plugin_api::{
+    AnimatedSpriteDescription, AnimationDescription, ImageDescription, PluginDescription, PluginId,
+};
 
 pub fn image_from_desc(desc: ImageDescription) -> Image {
     Image {
@@ -36,13 +38,12 @@ pub fn animation_from_desc(desc: AnimationDescription) -> Animation {
 }
 
 pub fn animated_sprite_from_desc(desc: AnimatedSpriteDescription) -> AnimatedSprite {
-    let animations: Vec<Animation> = desc.animations.into_iter().map(|a| animation_from_desc(a)).collect();
-    AnimatedSprite::new(
-        desc.tile_width,
-        desc.tile_height,
-        &animations,
-        desc.playing,
-    )
+    let animations: Vec<Animation> = desc
+        .animations
+        .into_iter()
+        .map(|a| animation_from_desc(a))
+        .collect();
+    AnimatedSprite::new(desc.tile_width, desc.tile_height, &animations, desc.playing)
 }
 
 pub struct PluginRegistry(HashMap<PluginId, Plugin>);
@@ -56,16 +57,17 @@ pub struct Plugin {
 pub struct GameApi {
     current_player: Arc<Mutex<Option<Handle<Player>>>>,
     current_remote_player: Arc<Mutex<Option<Handle<RemotePlayer>>>>,
+    sounds: Arc<Mutex<HashMap<String, Sound>>>,
 }
 unsafe impl Send for GameApi {}
 unsafe impl Sync for GameApi {}
 
 enum LocalOrRemotePlayer {
     Local(RefMut<Player>),
-    Remote(RefMut<RemotePlayer>)
+    Remote(RefMut<RemotePlayer>),
 }
 struct FishMut {
-    node: LocalOrRemotePlayer
+    node: LocalOrRemotePlayer,
 }
 impl std::ops::Deref for FishMut {
     type Target = Fish;
@@ -94,7 +96,11 @@ impl GameApi {
         result
     }
 
-    pub fn with_remote_player<R>(&self, player: Handle<RemotePlayer>, mut f: impl FnMut() -> R) -> R {
+    pub fn with_remote_player<R>(
+        &self,
+        player: Handle<RemotePlayer>,
+        mut f: impl FnMut() -> R,
+    ) -> R {
         self.current_remote_player.lock().unwrap().replace(player);
         let result = f();
         self.current_remote_player.lock().unwrap().take();
@@ -106,19 +112,22 @@ impl GameApi {
     }
 
     fn current_remote_player(&self) -> Option<Handle<RemotePlayer>> {
-        self.current_remote_player.lock().unwrap().map(|p| p.clone())
+        self.current_remote_player
+            .lock()
+            .unwrap()
+            .map(|p| p.clone())
     }
 
     fn current_fish(&self) -> FishMut {
         if let Some(handle) = self.current_player() {
             let node = scene::get_node(handle);
             FishMut {
-                node: LocalOrRemotePlayer::Local(node)
+                node: LocalOrRemotePlayer::Local(node),
             }
         } else {
             let node = scene::get_node(self.current_remote_player().unwrap());
             FishMut {
-                node: LocalOrRemotePlayer::Remote(node)
+                node: LocalOrRemotePlayer::Remote(node),
             }
         }
     }
@@ -222,47 +231,150 @@ impl GameApi {
         fish.disarm();
     }
 
+    fn play_sound_once(&self, name: String) {
+        if let Some(sound) = self.sounds.lock().unwrap().get(&name) {
+            play_sound_once(*sound);
+        }
+    }
+
     fn debug_print(&self, message: String) {
         println!("{}", message);
     }
 }
 
 impl PluginRegistry {
-    pub fn load(path: impl AsRef<Path>, item_registry: &mut ItemImplementationRegistry) -> Self {
+    pub async fn load(
+        path: impl AsRef<Path>,
+        item_registry: &mut ItemImplementationRegistry,
+    ) -> Self {
         let mut plugins = HashMap::new();
-        for entry in path.as_ref().read_dir().expect("Unable to read plugins directory") {
+        for entry in path
+            .as_ref()
+            .read_dir()
+            .expect("Unable to read plugins directory")
+        {
             if let Ok(entry) = entry {
                 if entry.path().to_str().unwrap().contains(".wasm") {
                     let game_api = GameApi::default();
-                    let mut builder = wasm_plugin_host::WasmPluginBuilder::from_file(entry.path()).expect(&format!("Failed to load plugin {:?}", entry.path()));
+                    let mut builder = wasm_plugin_host::WasmPluginBuilder::from_file(entry.path())
+                        .expect(&format!("Failed to load plugin {:?}", entry.path()));
                     // TODO: This should probably be a macro or something to reduce boilerplate
-                    builder = builder.import_function_with_context("spawn_bullet", game_api.clone(), |ctx: &GameApi| { ctx.spawn_bullet(); });
-                    builder = builder.import_function_with_context("hit_rect", game_api.clone(), |ctx: &GameApi, rect: [f32; 4]| { ctx.hit_rect(rect) });
-                    builder = builder.import_function_with_context("set_sprite_fx", game_api.clone(), |ctx: &GameApi, s: bool| { ctx.set_sprite_fx(s); });
-                    builder = builder.import_function_with_context("get_speed", game_api.clone(), |ctx: &GameApi| { ctx.get_speed() });
-                    builder = builder.import_function_with_context("set_speed", game_api.clone(), |ctx: &GameApi, s: [f32; 2]| { ctx.set_speed(s); });
-                    builder = builder.import_function_with_context("set_sprite_animation", game_api.clone(), |ctx: &GameApi, animation: usize| { ctx.set_sprite_animation(animation); });
-                    builder = builder.import_function_with_context("set_fx_sprite_animation", game_api.clone(), |ctx: &GameApi, animation: usize| { ctx.set_fx_sprite_animation(animation); });
-                    builder = builder.import_function_with_context("set_sprite_frame", game_api.clone(), |ctx: &GameApi, frame: u32| { ctx.set_sprite_frame(frame); });
-                    builder = builder.import_function_with_context("set_fx_sprite_frame", game_api.clone(), |ctx: &GameApi, frame: u32| { ctx.set_fx_sprite_frame(frame); });
-                    builder = builder.import_function_with_context("facing_dir", game_api.clone(), |ctx: &GameApi| { ctx.facing_dir() });
-                    builder = builder.import_function_with_context("position", game_api.clone(), |ctx: &GameApi| { ctx.position() });
-                    builder = builder.import_function_with_context("disarm", game_api.clone(), |ctx: &GameApi| { ctx.disarm() });
-                    builder = builder.import_function_with_context("nakama_shoot", game_api.clone(), |ctx: &GameApi| { ctx.nakama_shoot() });
-                    builder = builder.import_function_with_context("debug_print", game_api.clone(), |ctx: &GameApi, message: String| { ctx.debug_print(message) });
-                    let mut plugin = builder
-                        .finish()
-                        .unwrap();
-                    let description: PluginDescription = plugin.call_function("plugin_description").expect(&format!("Failed to call 'plugin_description' on plugin {:?}", entry.path()));
+                    builder = builder.import_function_with_context(
+                        "spawn_bullet",
+                        game_api.clone(),
+                        |ctx: &GameApi| {
+                            ctx.spawn_bullet();
+                        },
+                    );
+                    builder = builder.import_function_with_context(
+                        "hit_rect",
+                        game_api.clone(),
+                        |ctx: &GameApi, rect: [f32; 4]| ctx.hit_rect(rect),
+                    );
+                    builder = builder.import_function_with_context(
+                        "set_sprite_fx",
+                        game_api.clone(),
+                        |ctx: &GameApi, s: bool| {
+                            ctx.set_sprite_fx(s);
+                        },
+                    );
+                    builder = builder.import_function_with_context(
+                        "get_speed",
+                        game_api.clone(),
+                        |ctx: &GameApi| ctx.get_speed(),
+                    );
+                    builder = builder.import_function_with_context(
+                        "set_speed",
+                        game_api.clone(),
+                        |ctx: &GameApi, s: [f32; 2]| {
+                            ctx.set_speed(s);
+                        },
+                    );
+                    builder = builder.import_function_with_context(
+                        "set_sprite_animation",
+                        game_api.clone(),
+                        |ctx: &GameApi, animation: usize| {
+                            ctx.set_sprite_animation(animation);
+                        },
+                    );
+                    builder = builder.import_function_with_context(
+                        "set_fx_sprite_animation",
+                        game_api.clone(),
+                        |ctx: &GameApi, animation: usize| {
+                            ctx.set_fx_sprite_animation(animation);
+                        },
+                    );
+                    builder = builder.import_function_with_context(
+                        "set_sprite_frame",
+                        game_api.clone(),
+                        |ctx: &GameApi, frame: u32| {
+                            ctx.set_sprite_frame(frame);
+                        },
+                    );
+                    builder = builder.import_function_with_context(
+                        "set_fx_sprite_frame",
+                        game_api.clone(),
+                        |ctx: &GameApi, frame: u32| {
+                            ctx.set_fx_sprite_frame(frame);
+                        },
+                    );
+                    builder = builder.import_function_with_context(
+                        "facing_dir",
+                        game_api.clone(),
+                        |ctx: &GameApi| ctx.facing_dir(),
+                    );
+                    builder = builder.import_function_with_context(
+                        "position",
+                        game_api.clone(),
+                        |ctx: &GameApi| ctx.position(),
+                    );
+                    builder = builder.import_function_with_context(
+                        "disarm",
+                        game_api.clone(),
+                        |ctx: &GameApi| ctx.disarm(),
+                    );
+                    builder = builder.import_function_with_context(
+                        "play_sound_once",
+                        game_api.clone(),
+                        |ctx: &GameApi, sound: String| {
+                            ctx.play_sound_once(sound);
+                        },
+                    );
+                    builder = builder.import_function_with_context(
+                        "nakama_shoot",
+                        game_api.clone(),
+                        |ctx: &GameApi| ctx.nakama_shoot(),
+                    );
+                    builder = builder.import_function_with_context(
+                        "debug_print",
+                        game_api.clone(),
+                        |ctx: &GameApi, message: String| ctx.debug_print(message),
+                    );
+                    let mut plugin = builder.finish().unwrap();
+                    let description: PluginDescription =
+                        plugin.call_function("plugin_description").expect(&format!(
+                            "Failed to call 'plugin_description' on plugin {:?}",
+                            entry.path()
+                        ));
 
                     for item in description.items {
                         item_registry.add(item, description.plugin_id);
                     }
 
-                    plugins.insert(description.plugin_id, Plugin {
-                        wasm_plugin: plugin,
-                        game_api
-                    });
+                    {
+                        let mut sounds = game_api.sounds.lock().unwrap();
+                        for sound in description.sounds {
+                            sounds.insert(sound.name, load_sound_data(&sound.bytes).await.unwrap());
+                        }
+                    }
+
+                    plugins.insert(
+                        description.plugin_id,
+                        Plugin {
+                            wasm_plugin: plugin,
+                            game_api,
+                        },
+                    );
                 }
             }
         }

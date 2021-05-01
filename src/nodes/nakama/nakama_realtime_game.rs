@@ -399,7 +399,7 @@ impl Node for NakamaRealtimeGame {
                                     resources.disarm_fxses.spawn(pos + vec2(16., 33.));
                                     other.disarm();
                                 }
-                                if other.weapon().map_or(0, |weapon| weapon.into() )
+                                if other.weapon().map_or(0, |weapon| weapon.into())
                                     != state.weapon()
                                 {
                                     other.pick_weapon(state.weapon().into());
@@ -432,10 +432,7 @@ impl Node for NakamaRealtimeGame {
                                 } = DeBin::deserialize_bin(&data).unwrap();
                                 let pos = vec2(x as f32, y as f32);
 
-                                let new_node = scene::add_node(Pickup::new(
-                                    pos,
-                                    item_type.into()
-                                ));
+                                let new_node = scene::add_node(Pickup::new(pos, item_type.into()));
                                 if let Some(pickup) = node.pickups.insert(id as _, new_node) {
                                     if let Some(node) = scene::try_get_node(pickup) {
                                         node.delete();

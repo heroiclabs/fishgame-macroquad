@@ -44,7 +44,10 @@ impl ItemImplementation {
             implementing_plugin: plugin,
         }
     }
+}
 
+#[cfg(not(target_arch = "wasm32"))]
+impl ItemImplementation {
     fn with_plugin<R>(&self, mut f: impl FnMut(&mut Plugin) -> R) -> R {
         let mut plugin_registry = storage::get_mut::<PluginRegistry>();
         let plugin = plugin_registry
@@ -107,6 +110,31 @@ impl ItemImplementation {
                     .unwrap()
             })
         })
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl ItemImplementation {
+    pub(crate) fn construct(&self, item_id: ItemInstanceId) {
+    }
+
+    pub(crate) fn destroy(&self, item_id: ItemInstanceId) {
+    }
+
+    pub(crate) fn uses_remaining(&self, item_id: ItemInstanceId) -> Option<(u32, u32)> {
+        None
+    }
+
+    pub(crate) fn update_shoot(&self, item_id: ItemInstanceId, player: Handle<Player>) -> bool {
+        true
+    }
+
+    pub(crate) fn update_remote_shoot(
+        &self,
+        item_id: ItemInstanceId,
+        player: Handle<RemotePlayer>,
+    ) -> bool {
+        true
     }
 }
 

@@ -10,7 +10,6 @@ use crate::{
     nodes::{item::ItemImplementationRegistry, NakamaRealtimeGame, Pickup, Player, RemotePlayer},
     Resources,
 };
-use plugin_api::ItemType;
 
 pub struct GlobalEvents {
     last_spawn_time: f64,

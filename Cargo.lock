@@ -226,6 +226,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e7ca8a5221364ef15ce201e8ed2f609fc312682a8f4e0e3d4aa5879764e0fa3b"
 
 [[package]]
+name = "core_plugin"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "lazy_static",
+ "plugin_api",
+ "wasm_plugin_guest",
+]
+
+[[package]]
 name = "coreaudio-rs"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -518,6 +528,7 @@ version = "0.1.0"
 dependencies = [
  "base64",
  "bitfield",
+ "core_plugin",
  "macroquad",
  "macroquad-particles",
  "macroquad-platformer",
@@ -2141,6 +2152,29 @@ name = "wasm-bindgen-shared"
 version = "0.2.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9a543ae66aa233d14bb765ed9af4a33e81b8b58d1584cf1b47ff8cd0b9e4489"
+
+[[package]]
+name = "wasm_plugin_guest"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85398177caedea857f8a881cafa0256101b261a65d03872e577fdb7bff16f89c"
+dependencies = [
+ "bitfield",
+ "serde",
+ "serde_json",
+ "wasm_plugin_guest_derive",
+]
+
+[[package]]
+name = "wasm_plugin_guest_derive"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8029abbe46726b92fcfb290819097e8ae205030d8b09cdada5be037476ad879a"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "wasm_plugin_host"

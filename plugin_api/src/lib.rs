@@ -103,6 +103,32 @@ pub struct AnimationDescription {
     pub fps: u32,
 }
 
+pub trait PluginApi {
+    fn new_instance(&mut self, item_type: ItemType, item_id: ItemInstanceId);
+    fn destroy_instance(&mut self, item_id: ItemInstanceId);
+    fn uses_remaining(&mut self, item_id: ItemInstanceId) -> Option<(u32, u32)>;
+    fn update_shoot(&mut self, item_id: ItemInstanceId, time: f64) -> bool;
+    fn update_remote_shoot(&mut self, item_id: ItemInstanceId, time: f64) -> bool;
+}
+
+pub trait GameApi {
+    fn spawn_bullet(&self);
+    fn hit_rect(&self, rect: [f32; 4]) -> u32;
+    fn set_sprite_fx(&self, s: bool);
+    fn get_speed(&self) -> [f32; 2];
+    fn set_speed(&self, speed: [f32; 2]);
+    fn facing_dir(&self) -> f32;
+    fn position(&self) -> [f32; 2];
+    fn set_sprite_animation(&self, animation: u32);
+    fn set_fx_sprite_animation(&self, animation: u32);
+    fn set_sprite_frame(&self, frame: u32);
+    fn set_fx_sprite_frame(&self, frame: u32);
+    fn disarm(&self);
+    fn play_sound_once(&self, sound: String);
+    fn nakama_shoot(&self);
+    fn debug_print(&self, message: String);
+}
+
 #[macro_export]
 macro_rules! import_game_api {
     () => {

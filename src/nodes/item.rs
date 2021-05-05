@@ -9,7 +9,7 @@ use crate::{
     nodes::{Player, RemotePlayer},
     plugin::{animated_sprite_from_desc, image_from_desc, Plugin, PluginRegistry},
 };
-use plugin_api::{ItemDescription, ItemInstanceId, ItemType, PluginId};
+use plugin_api::{ItemDescription, ItemInstanceId, ItemType, PluginApi, PluginId};
 
 pub(crate) struct ItemImplementation {
     display_name: String,
@@ -46,7 +46,6 @@ impl ItemImplementation {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl ItemImplementation {
     fn with_plugin<R>(&self, mut f: impl FnMut(&mut Plugin) -> R) -> R {
         let mut plugin_registry = storage::get_mut::<PluginRegistry>();
@@ -58,40 +57,22 @@ impl ItemImplementation {
 
     pub(crate) fn construct(&self, item_id: ItemInstanceId) {
         self.with_plugin(|p| {
-            p.wasm_plugin
-                .call_function_with_argument("new_instance", &(self.item_type, item_id))
-                .unwrap()
+            p.new_instance(self.item_type, item_id);
         })
     }
 
     pub(crate) fn destroy(&self, item_id: ItemInstanceId) {
         self.with_plugin(|p| {
-            p.wasm_plugin
-                .call_function_with_argument("destroy_instance", &item_id)
-                .unwrap()
+            p.destroy_instance(item_id);
         })
     }
 
     pub(crate) fn uses_remaining(&self, item_id: ItemInstanceId) -> Option<(u32, u32)> {
-        self.with_plugin(|p| {
-            p.wasm_plugin
-                .call_function_with_argument("uses_remaining", &item_id)
-                .unwrap()
-        })
+        self.with_plugin(|p| p.uses_remaining(item_id))
     }
 
     pub(crate) fn update_shoot(&self, item_id: ItemInstanceId, player: Handle<Player>) -> bool {
-        self.with_plugin(|p| {
-            let Plugin {
-                game_api,
-                wasm_plugin,
-            } = p;
-            game_api.with_current_player(player, || {
-                wasm_plugin
-                    .call_function_with_argument("update_shoot", &(item_id, get_time()))
-                    .unwrap()
-            })
-        })
+        self.with_plugin(|p| p.with_current_player(player, |p| p.update_shoot(item_id, get_time())))
     }
 
     pub(crate) fn update_remote_shoot(
@@ -100,41 +81,8 @@ impl ItemImplementation {
         player: Handle<RemotePlayer>,
     ) -> bool {
         self.with_plugin(|p| {
-            let Plugin {
-                game_api,
-                wasm_plugin,
-            } = p;
-            game_api.with_remote_player(player, || {
-                wasm_plugin
-                    .call_function_with_argument("update_remote_shoot", &(item_id, get_time()))
-                    .unwrap()
-            })
+            p.with_current_remote_player(player, |p| p.update_remote_shoot(item_id, get_time()))
         })
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-impl ItemImplementation {
-    pub(crate) fn construct(&self, item_id: ItemInstanceId) {
-    }
-
-    pub(crate) fn destroy(&self, item_id: ItemInstanceId) {
-    }
-
-    pub(crate) fn uses_remaining(&self, item_id: ItemInstanceId) -> Option<(u32, u32)> {
-        None
-    }
-
-    pub(crate) fn update_shoot(&self, item_id: ItemInstanceId, player: Handle<Player>) -> bool {
-        true
-    }
-
-    pub(crate) fn update_remote_shoot(
-        &self,
-        item_id: ItemInstanceId,
-        player: Handle<RemotePlayer>,
-    ) -> bool {
-        true
     }
 }
 

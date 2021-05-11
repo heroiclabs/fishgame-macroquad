@@ -1,5 +1,5 @@
 use macroquad::{
-    audio::{load_sound_data, play_sound_once, Sound},
+    audio::{load_sound_from_bytes, play_sound_once, Sound},
     experimental::{
         animation::{AnimatedSprite, Animation},
         scene::{self, Handle, RefMut},
@@ -360,7 +360,7 @@ mod native_host {
                             for sound in description.sounds {
                                 sounds.insert(
                                     sound.name,
-                                    load_sound_data(&sound.bytes).await.unwrap(),
+                                    load_sound_from_bytes(&sound.bytes).await.unwrap(),
                                 );
                             }
                         }

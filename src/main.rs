@@ -14,18 +14,20 @@ use macroquad::{
 };
 use nanoserde::DeJson;
 
-use particles::EmittersCache;
 use macroquad_platformer::World as CollisionWorld;
+use particles::EmittersCache;
 
 mod credentials {
     include!(concat!(env!("OUT_DIR"), "/nakama_credentials.rs"));
 }
 
-mod nodes;
-
 mod gui;
+mod nodes;
+mod plugin;
 
 use gui::Scene;
+use nodes::{ItemIdSource, ItemImplementationRegistry};
+use plugin::PluginRegistry;
 
 pub mod consts {
     pub const GRAVITY: f32 = 900.0;
@@ -267,6 +269,12 @@ async fn network_game(nakama: Handle<nodes::Nakama>, game_type: GameType, networ
     let resources = storage::get::<Resources>();
     let w = resources.tiled_map.raw_tiled_map.tilewidth * resources.tiled_map.raw_tiled_map.width;
     let h = resources.tiled_map.raw_tiled_map.tileheight * resources.tiled_map.raw_tiled_map.height;
+
+    let mut item_registry = ItemImplementationRegistry::default();
+    let plugin_registry = PluginRegistry::load("plugins/", &mut item_registry).await;
+    storage::store(item_registry);
+    storage::store(plugin_registry);
+    storage::store(ItemIdSource::default());
 
     let level_background = scene::add_node(LevelBackground::new());
 

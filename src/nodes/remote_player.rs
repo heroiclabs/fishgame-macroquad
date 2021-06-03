@@ -8,17 +8,15 @@ use macroquad::{
 };
 
 use crate::{
-    nodes::{
-        pickup::ItemType,
-        player::{Fish, Weapon},
-    },
+    nodes::{item::ItemImplementationRegistry, player::Fish},
     Resources,
 };
+use plugin_api::ItemType;
 
 pub struct RemotePlayer {
     pub username: String,
     pub id: String,
-    fish: Fish,
+    pub fish: Fish,
 
     pub dead: bool,
     pub ready: bool,
@@ -50,11 +48,7 @@ impl RemotePlayer {
     }
 
     pub fn weapon(&self) -> Option<ItemType> {
-        match self.fish.weapon {
-            None => None,
-            Some(Weapon::Gun { .. }) => Some(ItemType::Gun),
-            Some(Weapon::Sword) => Some(ItemType::Sword),
-        }
+        self.fish.weapon.as_ref().map(|weapon| weapon.item_type)
     }
 
     pub fn set_pos(&mut self, pos: Vec2) {
@@ -76,41 +70,26 @@ impl RemotePlayer {
     }
 
     pub fn shoot(&mut self, handle: Handle<Self>) {
-        match self.fish.weapon {
-            Some(Weapon::Gun { .. }) => {
-                let mut bullets = scene::find_node_by_type::<crate::nodes::Bullets>().unwrap();
-                bullets.spawn_bullet(self.pos(), self.fish.facing());
-            }
-            Some(Weapon::Sword) => {
-                let swing = async move {
-                    {
-                        if let Some(mut node) = scene::try_get_node(handle) {
-                            node.fish.sword_sprite.set_animation(1);
-                        }
+        let coroutine = async move {
+            loop {
+                let mut item = None;
+                if let Some(weapon) = &scene::get_node(handle).fish.weapon {
+                    item = Some((weapon.item_type, weapon.item_id));
+                }
+                if let Some((item_type, item_id)) = item {
+                    let item_registry = storage::get::<ItemImplementationRegistry>();
+                    let implementation = item_registry.get_implementation(item_type).unwrap();
+                    let done = implementation.update_remote_shoot(item_id, handle);
+                    if done {
+                        break;
                     }
-
-                    for i in 0u32..3 {
-                        {
-                            if let Some(mut node) = scene::try_get_node(handle) {
-                                node.fish.sword_sprite.set_frame(i);
-                            }
-                        }
-
-                        wait_seconds(0.08).await;
-                    }
-
-                    {
-                        if let Some(mut node) = scene::try_get_node(handle) {
-                            node.fish.sword_sprite.set_animation(0);
-                        }
-                    }
-                };
-                start_coroutine(swing);
+                } else {
+                    break;
+                }
+                wait_seconds(0.005).await;
             }
-            None => {
-                println!("well");
-            }
-        }
+        };
+        start_coroutine(coroutine);
     }
 }
 impl scene::Node for RemotePlayer {

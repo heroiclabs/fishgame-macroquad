@@ -14,18 +14,19 @@ use nakama_rs::api_client::Event;
 
 use crate::{
     consts,
-    nodes::{pickup::ItemType, Nakama, Pickup, Player, RemotePlayer},
+    nodes::{Nakama, Pickup, Player, RemotePlayer},
     GameType, Resources,
 };
+use plugin_api::ItemType;
 
 struct NetworkCache {
-    sent_position: [u8; 4],
+    sent_position: [u8; 11],
     last_send_time: f64,
 }
 
 impl NetworkCache {
     fn flush(&mut self) {
-        self.sent_position = [0; 4];
+        self.sent_position = [0; 11];
         self.last_send_time = 0.0;
     }
 }
@@ -38,34 +39,34 @@ bitfield::bitfield! {
     y, set_y: 19, 10;
     facing, set_facing: 20;
     shooting, set_shooting: 21;
-    weapon, set_weapon: 30, 22;
-    dead, set_dead: 31;
+    u64, weapon, set_weapon: 85, 22;
+    dead, set_dead: 86;
 }
 
 #[test]
 fn test_bitfield() {
-    let mut bits = PlayerStateBits([0; 4]);
+    let mut bits = PlayerStateBits([0; 11]);
 
     bits.set_x(345);
     bits.set_y(567);
     bits.set_facing(true);
     bits.set_shooting(false);
-    bits.set_weapon(66);
+    bits.set_weapon(11527428624421318257);
 
     assert_eq!(bits.x(), 345);
     assert_eq!(bits.y(), 567);
     assert_eq!(bits.facing(), true);
     assert_eq!(bits.shooting(), false);
-    assert_eq!(bits.weapon(), 66);
+    assert_eq!(bits.weapon(), 11527428624421318257);
     assert_eq!(bits.dead(), false);
-    assert_eq!(std::mem::size_of_val(&bits), 4);
+    assert_eq!(std::mem::size_of_val(&bits), 11);
 }
 
 mod message {
     use nanoserde::{DeBin, SerBin};
 
     #[derive(Debug, Clone, SerBin, DeBin, PartialEq)]
-    pub struct State(pub [u8; 4]);
+    pub struct State(pub [u8; 11]);
     impl State {
         pub const OPCODE: i32 = 1;
     }
@@ -84,7 +85,7 @@ mod message {
         pub id: u32,
         pub x: u16,
         pub y: u16,
-        pub item_type: u8,
+        pub item_type: u64,
     }
     impl SpawnItem {
         pub const OPCODE: i32 = 4;
@@ -142,7 +143,7 @@ impl NakamaRealtimeGame {
         NakamaRealtimeGame {
             game_type,
             network_cache: NetworkCache {
-                sent_position: [0; 4],
+                sent_position: [0; 11],
                 last_send_time: 0.0,
             },
             remote_players: BTreeMap::new(),
@@ -176,7 +177,7 @@ impl NakamaRealtimeGame {
                 id: id as _,
                 x: pos.x as _,
                 y: pos.y as _,
-                item_type: item_type as _,
+                item_type: item_type.into(),
             },
         );
     }
@@ -315,18 +316,13 @@ impl Node for NakamaRealtimeGame {
 
                 node.network_cache.last_send_time = get_time();
 
-                let mut state = PlayerStateBits([0; 4]);
+                let mut state = PlayerStateBits([0; 11]);
 
                 state.set_x(player.pos().x as u32);
                 state.set_y(player.pos().y as u32);
                 state.set_facing(player.facing());
                 state.set_shooting(shooting);
-                let weapon = match player.weapon() {
-                    None => 0,
-                    Some(ItemType::Gun) => 1,
-                    Some(ItemType::Sword) => 2,
-                };
-                state.set_weapon(weapon);
+                state.set_weapon(player.weapon().map_or(0, |weapon| weapon.into()));
                 state.set_dead(player.is_dead());
 
                 if node.network_cache.sent_position != state.0 {
@@ -403,14 +399,10 @@ impl Node for NakamaRealtimeGame {
                                     resources.disarm_fxses.spawn(pos + vec2(16., 33.));
                                     other.disarm();
                                 }
-                                if other.weapon().map_or(0, |weapon| weapon as u32)
+                                if other.weapon().map_or(0, |weapon| weapon.into())
                                     != state.weapon()
                                 {
-                                    match state.weapon() {
-                                        1 => other.pick_weapon(ItemType::Gun),
-                                        2 => other.pick_weapon(ItemType::Sword),
-                                        _ => unreachable!(),
-                                    }
+                                    other.pick_weapon(state.weapon().into());
                                 }
                                 if state.shooting() {
                                     let handle = other.handle();
@@ -440,14 +432,7 @@ impl Node for NakamaRealtimeGame {
                                 } = DeBin::deserialize_bin(&data).unwrap();
                                 let pos = vec2(x as f32, y as f32);
 
-                                let new_node = scene::add_node(Pickup::new(
-                                    pos,
-                                    match item_type {
-                                        x if x == ItemType::Sword as u8 => ItemType::Sword,
-                                        x if x == ItemType::Gun as u8 => ItemType::Gun,
-                                        _ => unreachable!(),
-                                    },
-                                ));
+                                let new_node = scene::add_node(Pickup::new(pos, item_type.into()));
                                 if let Some(pickup) = node.pickups.insert(id as _, new_node) {
                                     if let Some(node) = scene::try_get_node(pickup) {
                                         node.delete();

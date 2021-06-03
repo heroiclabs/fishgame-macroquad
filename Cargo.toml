@@ -13,4 +13,10 @@ macroquad-particles = {version = "0.1", features = ["nanoserde"] }
 bitfield = "0.13"
 nakama-rs = "0.1"
 base64 = "0.13"
+plugin_api = { path = "./plugin_api" }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+wasm_plugin_host = { version = "0.1.6", default-features = false, features = ["serialize_json"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+core_plugin = { path = "./core_plugin", features = ["inline"] }

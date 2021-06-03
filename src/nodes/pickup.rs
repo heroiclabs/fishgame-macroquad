@@ -7,14 +7,8 @@ use macroquad::{
     prelude::*,
 };
 
-use crate::Resources;
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[repr(u8)]
-pub enum ItemType {
-    Gun = 1,
-    Sword = 2,
-}
+use crate::{nodes::item::ItemImplementationRegistry, Resources};
+use plugin_api::ItemType;
 
 pub struct Pickup {
     pub pos: Vec2,
@@ -80,29 +74,22 @@ impl scene::Node for Pickup {
             ),
         );
 
-        match node.item_type {
-            ItemType::Gun => draw_texture_ex(
-                resources.gun,
-                node.pos.x,
-                node.pos.y + 8.,
-                WHITE,
-                DrawTextureParams {
-                    source: Some(Rect::new(0.0, 0.0, 64., 32.)),
-                    dest_size: Some(vec2(32., 16.)),
-                    ..Default::default()
-                },
-            ),
-            ItemType::Sword => draw_texture_ex(
-                resources.sword,
-                node.pos.x + 4.,
-                node.pos.y - 4.,
-                WHITE,
-                DrawTextureParams {
-                    source: Some(Rect::new(195.0 + 5., 93.0 + 5., 65. - 10., 93. - 10.)),
-                    dest_size: Some(vec2(32., 32.)),
-                    ..Default::default()
-                },
-            ),
-        }
+        let item_registry = storage::get::<ItemImplementationRegistry>();
+        let item_impl = item_registry
+            .get_implementation(node.item_type)
+            .expect(&format!("Invalid ItemType: {:?}", node.item_type));
+
+        //TODO: position sprite
+        draw_texture_ex(
+            item_impl.texture,
+            node.pos.x,
+            node.pos.y + 8.,
+            WHITE,
+            DrawTextureParams {
+                source: Some(item_impl.pickup_src),
+                dest_size: Some(item_impl.pickup_dst),
+                ..Default::default()
+            },
+        );
     }
 }

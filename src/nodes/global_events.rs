@@ -7,7 +7,7 @@ use macroquad::{
 };
 
 use crate::{
-    nodes::{pickup::ItemType, NakamaRealtimeGame, Pickup, Player, RemotePlayer},
+    nodes::{item::ItemImplementationRegistry, NakamaRealtimeGame, Pickup, Player, RemotePlayer},
     Resources,
 };
 
@@ -45,6 +45,13 @@ impl scene::Node for GlobalEvents {
         if get_time() - node.last_spawn_time >= Self::SPAWN_INTERVAL as _
             && node.spawned_items.len() < 3
         {
+            let item_registry = storage::get::<ItemImplementationRegistry>();
+            let item_types = item_registry.item_types();
+            if item_types.is_empty() {
+                // Probably no plugins are loaded. Nothing to do.
+                return;
+            }
+
             let resources = storage::get::<Resources>();
 
             let tilewidth = resources.tiled_map.raw_tiled_map.tilewidth as f32;
@@ -75,11 +82,8 @@ impl scene::Node for GlobalEvents {
 
             node.last_spawn_time = get_time();
 
-            let item_type = if rand::gen_range(0, 2) == 0 {
-                ItemType::Gun
-            } else {
-                ItemType::Sword
-            };
+            let idx = rand::gen_range(0, item_types.len());
+            let item_type = item_types[idx];
             let item_id = node.uid;
             node.spawned_items
                 .push((item_id, scene::add_node(Pickup::new(pos, item_type))));

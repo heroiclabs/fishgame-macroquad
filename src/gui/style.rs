@@ -19,6 +19,7 @@ impl GuiResources {
             let label_style = root_ui()
                 .style_builder()
                 .font(include_bytes!("../../assets/ui/MinimalPixel v2.ttf"))
+                .unwrap()
                 .text_color(Color::from_rgba(255, 255, 255, 255))
                 .font_size(130)
                 .build();
@@ -40,6 +41,7 @@ impl GuiResources {
                     None,
                 ))
                 .font(include_bytes!("../../assets/ui/MinimalPixel v2.ttf"))
+                .unwrap()
                 .text_color(Color::from_rgba(200, 200, 160, 255))
                 .font_size(45)
                 .build();
@@ -55,6 +57,7 @@ impl GuiResources {
             let label_style = root_ui()
                 .style_builder()
                 .font(include_bytes!("../../assets/ui/MinimalPixel v2.ttf"))
+                .unwrap()
                 .text_color(Color::from_rgba(200, 200, 160, 255))
                 .font_size(20)
                 .build();
@@ -85,6 +88,7 @@ impl GuiResources {
                     None,
                 ))
                 .font(include_bytes!("../../assets/ui/MinimalPixel v2.ttf"))
+                .unwrap()
                 .text_color(Color::from_rgba(200, 200, 160, 255))
                 .font_size(25)
                 .build();
@@ -93,6 +97,7 @@ impl GuiResources {
                 .style_builder()
                 .background_margin(RectOffset::new(8.0, 8.0, 12.0, 12.0))
                 .font(include_bytes!("../../assets/ui/MinimalPixel v2.ttf"))
+                .unwrap()
                 .color(Color::from_rgba(58, 68, 102, 255))
                 .color_hovered(Color::from_rgba(149, 165, 190, 255))
                 .color_clicked(Color::from_rgba(129, 145, 170, 255))
@@ -113,6 +118,7 @@ impl GuiResources {
                     None,
                 ))
                 .font(include_bytes!("../../assets/ui/MinimalPixel v2.ttf"))
+                .unwrap()
                 .background_margin(RectOffset::new(2., 2., 2., 2.))
                 .text_color(Color::from_rgba(120, 120, 120, 255))
                 .font_size(20)
@@ -132,6 +138,7 @@ impl GuiResources {
             let label_style = root_ui()
                 .style_builder()
                 .font(include_bytes!("../../assets/ui/MinimalPixel v2.ttf"))
+                .unwrap()
                 .text_color(Color::from_rgba(200, 200, 160, 255))
                 .font_size(35)
                 .build();
@@ -145,6 +152,7 @@ impl GuiResources {
             let label_style = root_ui()
                 .style_builder()
                 .font(include_bytes!("../../assets/ui/MinimalPixel v2.ttf"))
+                .unwrap()
                 .text_color(Color::from_rgba(255, 0, 0, 255))
                 .font_size(20)
                 .build();
